@@ -1,0 +1,17 @@
+{
+  "name": "play-stats",
+  "version": "2026.6.13",
+  "description": "记录播放历史，统计听歌次数与艺术家排行",
+  "private": true,
+  "scripts": {
+    "build": "songloft-plugin build",
+    "dev": "songloft-plugin dev",
+    "validate": "songloft-plugin validate",
+    "publish:release": "songloft-plugin publish"
+  },
+  "devDependencies": {
+    "@songloft/plugin-builder": "^2.5.1",
+    "@songloft/plugin-sdk": "^2.5.1",
+    "typescript": "^5.7.0"
+  }
+}

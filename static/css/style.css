@@ -1,0 +1,241 @@
+/* 使用主程序注入的 --md-* 变量，自动适配亮/暗主题 */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--md-surface, #fef7ff);
+  color: var(--md-on-surface, #1c1b1f);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+
+.header {
+  margin-bottom: 20px;
+}
+
+.header__title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--md-on-surface);
+}
+
+.header__subtitle {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: var(--md-on-surface-variant, #49454f);
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.tabs__btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--md-outline-variant, #cac4d0);
+  border-radius: 20px;
+  background: transparent;
+  color: var(--md-on-surface-variant);
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tabs__btn:hover {
+  background: var(--md-surface-container-high, #ece6f0);
+}
+
+.tabs__btn--active {
+  background: var(--md-primary-container, #e8def8);
+  color: var(--md-on-primary-container, #21005d);
+  border-color: transparent;
+  font-weight: 500;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (min-width: 480px) {
+  .cards {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.card {
+  background: var(--md-surface-container-low, #f7f2fa);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card__label {
+  font-size: 0.75rem;
+  color: var(--md-on-surface-variant);
+}
+
+.card__value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--md-on-surface);
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (min-width: 560px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.panel {
+  background: var(--md-surface-container-low);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.panel--full {
+  margin-bottom: 0;
+}
+
+.panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.panel__title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.panel__header .panel__title {
+  margin-bottom: 0;
+}
+
+.rank-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: rank;
+}
+
+.rank-list li {
+  counter-increment: rank;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--md-outline-variant);
+  font-size: 0.875rem;
+}
+
+.rank-list li:last-child {
+  border-bottom: none;
+}
+
+.rank-list li::before {
+  content: counter(rank);
+  flex-shrink: 0;
+  width: 1.5rem;
+  font-weight: 600;
+  color: var(--md-primary, #6750a4);
+  font-size: 0.8rem;
+}
+
+.rank-list__name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-list__count {
+  flex-shrink: 0;
+  color: var(--md-on-surface-variant);
+  font-size: 0.8rem;
+}
+
+.rank-list__empty,
+.history-list__empty {
+  color: var(--md-on-surface-variant);
+  font-size: 0.875rem;
+  padding: 8px 0;
+  list-style: none;
+}
+
+.history-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--md-outline-variant);
+  font-size: 0.875rem;
+}
+
+.history-list li:last-child {
+  border-bottom: none;
+}
+
+.history-list__song {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-list__meta {
+  font-size: 0.75rem;
+  color: var(--md-on-surface-variant);
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--md-error, #b3261e);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.btn-text:hover {
+  background: var(--md-error-container, #f9dedc);
+}
+
+.btn-text:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
