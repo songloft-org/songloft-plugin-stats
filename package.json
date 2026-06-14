@@ -1,6 +1,6 @@
 {
   "name": "stats",
-  "version": "2026.6.13",
+  "version": "2026.6.14",
   "description": "记录播放历史，统计听歌次数与艺术家排行",
   "private": true,
   "homepage": "https://github.com/songloft-org/songloft-plugin-stats",
