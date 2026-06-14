@@ -131,6 +131,10 @@ body {
   margin-bottom: 0;
 }
 
+.panel--spaced {
+  margin-bottom: 16px;
+}
+
 .panel__header {
   display: flex;
   align-items: center;
@@ -197,6 +201,8 @@ body {
   font-size: 0.875rem;
   padding: 8px 0;
   list-style: none;
+  counter-increment: none;
+  border-bottom: none;
 }
 
 .history-list {
@@ -247,4 +253,208 @@ body {
 .btn-text:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 加载状态 */
+.cards.loading {
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+/* 加载更多 */
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
+  border-bottom: none !important;
+}
+
+.load-more .btn-text {
+  color: var(--md-primary, #6750a4);
+  font-size: 0.875rem;
+}
+
+/* ── 趋势图 ───────────────────────────────────────────────────────────────── */
+
+.trend-chart {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.trend-chart svg {
+  display: block;
+  width: 100%;
+  min-width: 480px;
+  height: 140px;
+}
+
+.trend-chart__empty {
+  color: var(--md-on-surface-variant);
+  font-size: 0.875rem;
+  padding: 8px 0;
+}
+
+.trend-bar {
+  fill: var(--md-primary, #6750a4);
+  rx: 2;
+  transition: opacity 0.15s;
+}
+
+.trend-bar:hover {
+  opacity: 0.7;
+}
+
+.trend-label {
+  fill: var(--md-on-surface-variant, #49454f);
+  font-size: 9px;
+  text-anchor: middle;
+  user-select: none;
+}
+
+.trend-gridline {
+  stroke: var(--md-outline-variant, #cac4d0);
+  stroke-width: 0.5;
+  stroke-dasharray: 3 3;
+}
+
+/* Tooltip */
+.trend-tooltip {
+  position: absolute;
+  background: var(--md-inverse-surface, #313033);
+  color: var(--md-inverse-on-surface, #f4eff4);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.trend-tooltip.visible {
+  opacity: 1;
+}
+
+/* ── 自定义弹窗 ─────────────────────────────────────────────────────────────── */
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+}
+
+.dialog-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.dialog {
+  background: var(--md-surface-container-high, #ece6f0);
+  border-radius: 28px;
+  padding: 24px;
+  max-width: 360px;
+  width: calc(100% - 32px);
+  transform: scale(0.9);
+  transition: transform 0.2s;
+}
+
+.dialog-overlay.open .dialog {
+  transform: scale(1);
+}
+
+.dialog__title {
+  margin: 0 0 16px;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--md-on-surface);
+}
+
+.dialog__body {
+  margin: 0 0 24px;
+  font-size: 0.875rem;
+  color: var(--md-on-surface-variant);
+  line-height: 1.5;
+}
+
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog__btn {
+  border: none;
+  border-radius: 20px;
+  padding: 10px 24px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.dialog__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dialog__btn--cancel {
+  background: transparent;
+  color: var(--md-on-surface-variant);
+}
+
+.dialog__btn--cancel:hover:not(:disabled) {
+  background: var(--md-surface-container-highest, #e6e0e9);
+}
+
+.dialog__btn--confirm {
+  background: var(--md-primary, #6750a4);
+  color: var(--md-on-primary, #fff);
+}
+
+.dialog__btn--confirm.dialog__btn--danger {
+  background: var(--md-error, #b3261e);
+  color: var(--md-on-error, #fff);
+}
+
+.dialog__btn--confirm:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+/* ── Toast ──────────────────────────────────────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--md-inverse-surface, #313033);
+  color: var(--md-inverse-on-surface, #f4eff4);
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  z-index: 1001;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s, transform 0.25s, visibility 0.25s;
+  pointer-events: none;
+  max-width: calc(100% - 32px);
+  text-align: center;
+}
+
+.toast.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
 }

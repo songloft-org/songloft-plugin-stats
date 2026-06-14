@@ -18,9 +18,9 @@
     </header>
 
     <div class="tabs" role="tablist">
-      <button class="tabs__btn tabs__btn--active" data-days="0" role="tab">全部</button>
-      <button class="tabs__btn" data-days="7" role="tab">近 7 天</button>
-      <button class="tabs__btn" data-days="30" role="tab">近 30 天</button>
+      <button class="tabs__btn tabs__btn--active" data-days="0" role="tab" aria-selected="true">全部</button>
+      <button class="tabs__btn" data-days="7" role="tab" aria-selected="false">近 7 天</button>
+      <button class="tabs__btn" data-days="30" role="tab" aria-selected="false">近 30 天</button>
     </div>
 
     <section class="cards" id="summaryCards">
@@ -42,6 +42,13 @@
       </div>
     </section>
 
+    <section class="panel panel--spaced">
+      <h2 class="panel__title">每日播放趋势</h2>
+      <div class="trend-chart" id="trendChart">
+        <div class="trend-chart__empty">加载中…</div>
+      </div>
+    </section>
+
     <div class="grid">
       <section class="panel">
         <h2 class="panel__title">艺术家排行</h2>
@@ -58,6 +65,13 @@
       </section>
     </div>
 
+    <section class="panel panel--spaced">
+      <h2 class="panel__title">来源分布</h2>
+      <ol class="rank-list" id="sourceList">
+        <li class="rank-list__empty">加载中…</li>
+      </ol>
+    </section>
+
     <section class="panel panel--full">
       <div class="panel__header">
         <h2 class="panel__title">最近播放</h2>
@@ -68,6 +82,21 @@
       </ul>
     </section>
   </div>
+
+  <!-- 自定义弹窗 -->
+  <div class="dialog-overlay" id="dialogOverlay" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+    <div class="dialog">
+      <h3 class="dialog__title" id="dialogTitle"></h3>
+      <p class="dialog__body" id="dialogBody"></p>
+      <div class="dialog__actions">
+        <button class="dialog__btn dialog__btn--cancel" id="dialogCancel" type="button">取消</button>
+        <button class="dialog__btn dialog__btn--confirm" id="dialogConfirm" type="button">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast 提示 -->
+  <div class="toast" id="toast" role="alert" aria-live="polite"></div>
 
   <script type="module" src="static/js/app.js"></script>
 </body>
