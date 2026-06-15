@@ -38,21 +38,9 @@ export async function drainWrites(): Promise<void> {
 
 async function flushSave(records: PlayRecord[]): Promise<void> {
   const trimmed = records.length > MAX_HISTORY ? records.slice(-MAX_HISTORY) : records;
-  await songloft.storage.set(HISTORY_KEY, JSON.stringify(trimmed));
+  // 直接存储 JSON 对象，而不是字符串（storage 接口支持 JSON 数据）
+  await songloft.storage.set(HISTORY_KEY, trimmed);
   cache = trimmed;
-}
-
-async function doClear(): Promise<void> {
-  await songloft.storage.delete(HISTORY_KEY);
-  cache = [];
-}
-
-export function clearHistory(): Promise<void> {
-  const p = writeQueue.then(() => doClear());
-  writeQueue = p.catch((e) => {
-    songloft.log.error('[store] clearHistory 失败: ' + String(e));
-  });
-  return p;
 }
 
 // ── 记录写入 ──────────────────────────────────────────────────────────────────

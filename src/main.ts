@@ -29,15 +29,20 @@ function isDuplicate(songId: number, timestamp: number): boolean {
 
 function subscribePlayEvents(): void {
   songloft.events.onPlayEvent(async (event: PlayEvent) => {
-    // 无论什么类型都先记录一条日志，方便调试
+    // 详细日志：记录所有事件的完整信息
     songloft.log.info(
-      `[PlayEvent] type=${event.type} source=${event.source} songId=${event.song.id} ${event.song.artist} - ${event.song.title}`,
+      `[PlayEvent] type=${event.type} source=${event.source} songId=${event.song.id} ${event.song.artist} - ${event.song.title} timestamp=${event.timestamp}`,
     );
-    // 记录 play 和 finish 事件，跳过 skip（用户主动跳过的歌不计入）
-    if (event.type === 'skip') {
-      songloft.log.info(`[跳过] skip 事件不记录: ${event.song.artist} - ${event.song.title}`);
+    
+    // 只记录 finish 事件（播放完成），跳过 play 和 skip 事件
+    // 这样可以避免用户只是点击预览就被记录，确保统计的是真正听完的歌曲
+    if (event.type !== 'finish') {
+      songloft.log.info(`[跳过] 非 finish 事件不记录: type=${event.type} ${event.song.artist} - ${event.song.title}`);
       return;
     }
+    
+    // finish 事件将通过去重检查
+    songloft.log.info(`[允许] type=finish 将通过去重检查`);
     // 同一首歌 10s 内不重复记录（防止同一客户端同时发 play+finish）
     if (isDuplicate(event.song.id, event.timestamp)) {
       songloft.log.info(`[去重] ${event.song.artist} - ${event.song.title}`);

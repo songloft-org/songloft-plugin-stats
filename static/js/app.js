@@ -2,7 +2,7 @@
  * 播放统计 — 前端入口
  * SongloftPlugin 由主程序自动注入
  */
-const { apiGet, apiDelete } = SongloftPlugin;
+const { apiGet } = SongloftPlugin;
 
 const SOURCE_LABELS = {
   'songloft-player': '客户端',
@@ -11,9 +11,7 @@ const SOURCE_LABELS = {
 };
 
 let currentDays = 0;
-let historyOffset = 0;
-const HISTORY_PAGE_SIZE = 30;
-let historyTotal = 0;
+const HISTORY_LIMIT = 5; // 固定显示最近 5 条记录
 let isLoading = false;
 let debounceTimer = null;
 
@@ -114,77 +112,9 @@ function showError(message) {
     `<li class="rank-list__empty">加载失败: ${errMsg}</li>`;
   document.getElementById('historyList').innerHTML =
     `<li class="history-list__empty">加载失败: ${errMsg}</li>`;
-  document.getElementById('trendChart').innerHTML =
-    `<div class="trend-chart__empty">加载失败: ${errMsg}</div>`;
 }
 
 // ── 渲染函数 ──────────────────────────────────────────────────────────────────
-
-function renderTrend(data) {
-  const container = document.getElementById('trendChart');
-  if (!data || !data.length) {
-    container.innerHTML = '<div class="trend-chart__empty">暂无趋势数据</div>';
-    return;
-  }
-
-  const maxPlays = Math.max(1, ...data.map((d) => d.plays));
-  const svgWidth = 680;
-  const svgHeight = 140;
-  const padTop = 10;
-  const padBottom = 24;
-  const padLeft = 4;
-  const padRight = 4;
-  const chartH = svgHeight - padTop - padBottom;
-  const barCount = data.length;
-  const gap = 2;
-  const barW = Math.max(2, (svgWidth - padLeft - padRight - gap * (barCount - 1)) / barCount);
-
-  let svg = `<svg viewBox="0 0 ${svgWidth} ${svgHeight}" preserveAspectRatio="xMidYMid meet">`;
-
-  // 网格线（3条水平线）
-  for (let i = 1; i <= 3; i++) {
-    const y = padTop + chartH - (chartH * i) / 3;
-    svg += `<line class="trend-gridline" x1="${padLeft}" y1="${y}" x2="${svgWidth - padRight}" y2="${y}" />`;
-  }
-
-  // 柱子 + 日期标签
-  data.forEach((d, i) => {
-    const x = padLeft + i * (barW + gap);
-    const h = d.plays > 0 ? Math.max(3, (d.plays / maxPlays) * chartH) : 0;
-    const y = padTop + chartH - h;
-    svg += `<rect class="trend-bar" x="${x}" y="${y}" width="${barW}" height="${h}" data-date="${d.date}" data-plays="${d.plays}" data-dur="${d.durationSec}" />`;
-
-    // 每隔几天显示一次标签，避免拥挤
-    const labelInterval = barCount <= 14 ? 1 : barCount <= 31 ? 3 : 7;
-    if (i % labelInterval === 0 || i === barCount - 1) {
-      svg += `<text class="trend-label" x="${x + barW / 2}" y="${svgHeight - 4}">${d.date}</text>`;
-    }
-  });
-
-  svg += '</svg>';
-  svg += '<div class="trend-tooltip" id="trendTooltip"></div>';
-  container.innerHTML = svg;
-
-  // Tooltip 交互
-  const tooltip = document.getElementById('trendTooltip');
-  container.querySelectorAll('.trend-bar').forEach((bar) => {
-    bar.addEventListener('mouseenter', (e) => {
-      const date = bar.getAttribute('data-date');
-      const plays = bar.getAttribute('data-plays');
-      const dur = formatDuration(parseInt(bar.getAttribute('data-dur'), 10));
-      tooltip.textContent = `${date}  ${plays} 次播放  ${dur}`;
-      tooltip.classList.add('visible');
-    });
-    bar.addEventListener('mousemove', (e) => {
-      const rect = container.getBoundingClientRect();
-      tooltip.style.left = (e.clientX - rect.left + 8) + 'px';
-      tooltip.style.top = (e.clientY - rect.top - 36) + 'px';
-    });
-    bar.addEventListener('mouseleave', () => {
-      tooltip.classList.remove('visible');
-    });
-  });
-}
 
 function renderSummary(data) {
   document.getElementById('totalPlays').textContent = String(data.totalPlays);
@@ -240,9 +170,9 @@ function renderBySource(bySource) {
     .join('');
 }
 
-function renderHistory(records, append) {
+function renderHistory(records) {
   const el = document.getElementById('historyList');
-  if (!records.length && !append) {
+  if (!records.length) {
     el.innerHTML = '<li class="history-list__empty">暂无播放记录，开始听歌吧</li>';
     return;
   }
@@ -255,22 +185,7 @@ function renderHistory(records, append) {
         `</li>`,
     )
     .join('');
-  if (append) {
-    // 移除“加载更多”按钮再追加
-    const loadMore = el.querySelector('.load-more');
-    if (loadMore) loadMore.remove();
-    el.insertAdjacentHTML('beforeend', html);
-  } else {
-    el.innerHTML = html;
-  }
-  // 如果还有更多记录，显示“加载更多”
-  if (historyOffset < historyTotal) {
-    el.insertAdjacentHTML(
-      'beforeend',
-      `<li class="load-more"><button class="btn-text" id="loadMoreBtn" type="button">加载更多</button></li>`,
-    );
-    document.getElementById('loadMoreBtn').addEventListener('click', loadMoreHistory);
-  }
+  el.innerHTML = html;
 }
 
 // ── 数据请求 ──────────────────────────────────────────────────────────────────
@@ -278,40 +193,20 @@ function renderHistory(records, append) {
 async function loadData() {
   if (isLoading) return;
   setLoading(true);
-  historyOffset = 0;
   const daysParam = currentDays > 0 ? `?days=${currentDays}` : '';
-  // 趋势图默认 30 天，选“全部”时显示 30 天趋势
-  const trendDays = currentDays > 0 ? currentDays : 30;
   try {
-    const [summary, history, trend] = await Promise.all([
+    const [summary, history] = await Promise.all([
       apiGet('/api/stats/summary' + daysParam),
-      apiGet(`/api/history?limit=${HISTORY_PAGE_SIZE}&offset=0`),
-      apiGet(`/api/stats/trend?days=${trendDays}`),
+      apiGet(`/api/history?limit=${HISTORY_LIMIT}&offset=0`),
     ]);
     if (summary.success) renderSummary(summary.data);
     if (history.success) {
-      historyTotal = history.data.total;
-      historyOffset = history.data.records.length;
-      renderHistory(history.data.records, false);
+      renderHistory(history.data.records);
     }
-    if (trend.success) renderTrend(trend.data);
   } catch (err) {
     showError(err.message || '未知错误');
   } finally {
     setLoading(false);
-  }
-}
-
-async function loadMoreHistory() {
-  if (isLoading || historyOffset >= historyTotal) return;
-  try {
-    const res = await apiGet(`/api/history?limit=${HISTORY_PAGE_SIZE}&offset=${historyOffset}`);
-    if (res.success) {
-      historyOffset += res.data.records.length;
-      renderHistory(res.data.records, true);
-    }
-  } catch (err) {
-    showToast('加载更多失败: ' + (err.message || '未知错误'));
   }
 }
 
@@ -334,32 +229,8 @@ function initTabs() {
   });
 }
 
-function initClear() {
-  const btn = document.getElementById('clearBtn');
-  btn.addEventListener('click', async () => {
-    const confirmed = await openDialog({
-      title: '清空播放记录',
-      body: '确定清空所有播放记录？此操作不可恢复。',
-      confirmText: '清空',
-      danger: true,
-    });
-    if (!confirmed) return;
-    btn.disabled = true;
-    try {
-      await apiDelete('/api/history', { body: JSON.stringify({ confirm: true }) });
-      await loadData();
-      showToast('已清空所有播放记录');
-    } catch (err) {
-      showToast('清空失败: ' + (err.message || '未知错误'));
-    } finally {
-      btn.disabled = false;
-    }
-  });
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   initDialog();
   initTabs();
-  initClear();
   loadData();
 });

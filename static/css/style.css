@@ -275,69 +275,15 @@ body {
   font-size: 0.875rem;
 }
 
-/* ── 趋势图 ───────────────────────────────────────────────────────────────── */
-
-.trend-chart {
-  position: relative;
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-
-.trend-chart svg {
-  display: block;
-  width: 100%;
-  min-width: 480px;
-  height: 140px;
-}
-
-.trend-chart__empty {
-  color: var(--md-on-surface-variant);
-  font-size: 0.875rem;
-  padding: 8px 0;
-}
-
-.trend-bar {
-  fill: var(--md-primary, #6750a4);
-  rx: 2;
-  transition: opacity 0.15s;
-}
-
-.trend-bar:hover {
-  opacity: 0.7;
-}
-
-.trend-label {
-  fill: var(--md-on-surface-variant, #49454f);
-  font-size: 9px;
-  text-anchor: middle;
-  user-select: none;
-}
-
-.trend-gridline {
-  stroke: var(--md-outline-variant, #cac4d0);
-  stroke-width: 0.5;
-  stroke-dasharray: 3 3;
-}
-
-/* Tooltip */
-.trend-tooltip {
-  position: absolute;
-  background: var(--md-inverse-surface, #313033);
-  color: var(--md-inverse-on-surface, #f4eff4);
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s;
-  white-space: nowrap;
-  z-index: 10;
-}
-
-.trend-tooltip.visible {
-  opacity: 1;
+/* 已达上限提示 */
+.limit-reached {
+  display: flex;
+  justify-content: center;
+  padding: 12px 0 4px;
+  border-bottom: none !important;
+  color: var(--md-on-surface-variant, #49454f);
+  font-size: 0.8rem;
+  font-style: italic;
 }
 
 /* ── 自定义弹窗 ─────────────────────────────────────────────────────────────── */
