@@ -15,5 +15,11 @@ export interface StatsSummary {
   uniqueArtists: number;
   topArtists: { artist: string; plays: number }[];
   topSongs: { songId: number; title: string; artist: string; plays: number }[];
+  topAlbums: { album: string; plays: number }[];
   bySource: Record<string, number>;
+}
+
+export interface TimeRange {
+  from?: number;
+  to?: number;
 }

@@ -1,15 +1,15 @@
 {
   "$schema": "https://raw.githubusercontent.com/songloft-org/plugin-toolchain/main/schemas/plugin.schema.json",
   "name": "播放统计",
-  "version": "2026.6.17",
+  "version": "2026.7.2",
   "description": "记录播放历史，统计听歌次数与艺术家排行",
-  "author": "deerwan",
+  "author": "Songloft Team",
   "homepage": "https://github.com/songloft-org/songloft-plugin-stats",
   "license": "Apache-2.0",
   "icon": "icon.svg",
   "entryPath": "stats",
   "main": "main.js",
-  "minHostVersion": "2.8.2",
+  "minHostVersion": "1.1.0",
   "permissions": [
     "storage",
     "songs.read"

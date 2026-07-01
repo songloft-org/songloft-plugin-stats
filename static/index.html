@@ -17,54 +17,153 @@
       <p class="header__subtitle">记录你的听歌习惯</p>
     </header>
 
-    <section class="cards" id="summaryCards">
-      <div class="card">
-        <span class="card__label">播放次数</span>
-        <span class="card__value" id="totalPlays">—</span>
-      </div>
-      <div class="card">
-        <span class="card__label">听歌时长</span>
-        <span class="card__value" id="totalDuration">—</span>
-      </div>
-      <div class="card">
-        <span class="card__label">不同歌曲</span>
-        <span class="card__value" id="uniqueSongs">—</span>
-      </div>
-      <div class="card">
-        <span class="card__label">不同艺术家</span>
-        <span class="card__value" id="uniqueArtists">—</span>
-      </div>
-    </section>
+    <nav class="tabs" id="mainTabs">
+      <button class="tab tab--active" data-tab="stats">统计</button>
+      <button class="tab" data-tab="settings">设置</button>
+    </nav>
 
-    <div class="grid">
-      <section class="panel">
-        <h2 class="panel__title">艺术家排行</h2>
-        <ol class="rank-list" id="topArtists">
+    <!-- ── 统计面板 ──────────────────────────────────────────────────────────── -->
+    <div id="tab-stats" class="tab-content active">
+      <nav class="tabs" id="timeTabs">
+        <button class="tab tab--active" data-range="all">全部</button>
+        <button class="tab" data-range="today">今日</button>
+        <button class="tab" data-range="week">本周</button>
+        <button class="tab" data-range="month">本月</button>
+      </nav>
+
+      <section class="cards" id="summaryCards">
+        <div class="card">
+          <span class="card__label">播放次数</span>
+          <span class="card__value" id="totalPlays">—</span>
+        </div>
+        <div class="card">
+          <span class="card__label">听歌时长</span>
+          <span class="card__value" id="totalDuration">—</span>
+        </div>
+        <div class="card">
+          <span class="card__label">不同歌曲</span>
+          <span class="card__value" id="uniqueSongs">—</span>
+        </div>
+        <div class="card">
+          <span class="card__label">不同艺术家</span>
+          <span class="card__value" id="uniqueArtists">—</span>
+        </div>
+      </section>
+
+      <div class="grid">
+        <section class="panel">
+          <h2 class="panel__title">艺术家排行</h2>
+          <ol class="rank-list" id="topArtists">
+            <li class="rank-list__empty">加载中…</li>
+          </ol>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel__title">歌曲排行</h2>
+          <ol class="rank-list" id="topSongs">
+            <li class="rank-list__empty">加载中…</li>
+          </ol>
+        </section>
+      </div>
+
+      <section class="panel panel--spaced">
+        <h2 class="panel__title">听歌趋势</h2>
+        <div class="trends-controls">
+          <span class="trends-label">最近</span>
+          <button class="btn-range btn-range--active" data-trend-days="7">7天</button>
+          <button class="btn-range" data-trend-days="30">30天</button>
+        </div>
+        <div class="bar-chart" id="trendChart">
+          <div class="bar-chart__empty">加载中…</div>
+        </div>
+      </section>
+
+      <div class="grid">
+        <section class="panel">
+          <h2 class="panel__title">专辑排行</h2>
+          <ol class="rank-list" id="topAlbums">
+            <li class="rank-list__empty">加载中…</li>
+          </ol>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel__title">时段分布</h2>
+          <div class="hourly-dist" id="hourlyDist">
+            <div class="hourly-dist__empty">加载中…</div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel panel--spaced">
+        <h2 class="panel__title">来源分布</h2>
+        <ol class="rank-list" id="sourceList">
           <li class="rank-list__empty">加载中…</li>
         </ol>
       </section>
 
-      <section class="panel">
-        <h2 class="panel__title">歌曲排行</h2>
-        <ol class="rank-list" id="topSongs">
-          <li class="rank-list__empty">加载中…</li>
-        </ol>
+      <section class="panel panel--full">
+        <h2 class="panel__title">最近播放</h2>
+        <ul class="history-list" id="historyList">
+          <li class="history-list__empty">加载中…</li>
+        </ul>
+        <div class="history-footer" id="historyFooter" style="display:none">
+          <button class="btn-more" id="btnLoadMore">加载更多</button>
+        </div>
       </section>
     </div>
 
-    <section class="panel panel--spaced">
-      <h2 class="panel__title">来源分布</h2>
-      <ol class="rank-list" id="sourceList">
-        <li class="rank-list__empty">加载中…</li>
-      </ol>
-    </section>
+    <!-- ── 设置面板 ──────────────────────────────────────────────────────────── -->
+    <div id="tab-settings" class="tab-content">
+      <section class="panel">
+        <h2 class="panel__title">历史记录保留</h2>
+        <p class="setting-desc">
+          当前记录数：<strong id="recordCount">—</strong>
+          &nbsp;·&nbsp;
+          上限：
+          <select id="maxHistorySelect" class="setting-select">
+            <option value="5000">5,000</option>
+            <option value="10000">10,000</option>
+            <option value="20000" selected>20,000（默认）</option>
+            <option value="50000">50,000</option>
+            <option value="100000">100,000</option>
+          </select>
+        </p>
+        <div class="setting-actions">
+          <button class="btn-filled" id="btnSaveLimit">保存上限</button>
+        </div>
+      </section>
 
-    <section class="panel panel--full">
-      <h2 class="panel__title">最近播放</h2>
-      <ul class="history-list" id="historyList">
-        <li class="history-list__empty">加载中…</li>
-      </ul>
-    </section>
+      <section class="panel">
+        <h2 class="panel__title">数据管理</h2>
+        <div class="setting-actions setting-actions--row">
+          <button class="btn-filled" id="btnExport">导出数据</button>
+          <button class="btn-outlined" id="btnImport">导入数据</button>
+          <input type="file" id="importFile" accept=".json" style="display:none">
+        </div>
+      </section>
+
+      <section class="panel panel--danger">
+        <h2 class="panel__title">危险操作</h2>
+        <p class="setting-desc">清空所有播放统计数据，此操作不可撤销。</p>
+        <div class="setting-actions">
+          <button class="btn-filled danger" id="btnReset">重置统计数据</button>
+        </div>
+      </section>
+
+      <div class="toast" id="toast"></div>
+    </div>
+  </div>
+
+  <!-- Dialog -->
+  <div id="dialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true">
+    <div class="dialog">
+      <div class="dialog-title" id="dialogTitle">确认</div>
+      <div class="dialog-content" id="dialogContent">确定要执行此操作吗？</div>
+      <div class="dialog-actions">
+        <button class="btn-text" id="dialogCancelBtn">取消</button>
+        <button class="btn-filled" id="dialogConfirmBtn">确定</button>
+      </div>
+    </div>
   </div>
 
   <script src="static/js/app.js"></script>
