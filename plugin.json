@@ -12,7 +12,6 @@
   "minHostVersion": "1.1.0",
   "permissions": [
     "storage",
-    "persistent-storage",
     "songs.read"
   ],
   "publicPaths": [

@@ -59,9 +59,6 @@ async function isDuplicate(songId: number, timestamp: number): Promise<boolean> 
 import { loadPushConfig, loadPushSchedule } from './push/config';
 import type { PushConfig, PushSchedule } from './push/config';
 
-// persistentStorage 由主程序注入，类型定义可能不完整，使用 any 绕过
-const persistentStorage = (songloft as any).persistentStorage;
-
 // ── 推送平台消息构造 ──────────────────────────────────────────────────────────
 
 function formatDuration(sec: number): string {
@@ -153,7 +150,7 @@ const PLATFORM_PUSHERS: Record<string, (token: string, title: string, content: s
 let pushTimerId: number | null = null;
 
 async function doPush(platform: string, isManual?: boolean): Promise<void> {
-  const config = await loadPushConfig(persistentStorage);
+  const config = await loadPushConfig();
   const pc = config[platform as keyof typeof config];
   if (!pc?.enabled || !pc.token) {
     if (isManual) songloft.log.info(`[推送] ${platform}: 未启用或 token 为空，跳过`);
@@ -205,7 +202,7 @@ function scheduleNextPush(): void {
   }
 
   // 从持久化存储读取调度配置
-  loadPushSchedule(persistentStorage)
+  loadPushSchedule()
     .then((schedule: PushSchedule) => {
     if (!schedule || !schedule.enabled) return;
 

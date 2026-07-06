@@ -7,7 +7,6 @@ import { loadPushConfig, savePushConfig, loadPushSchedule, savePushSchedule } fr
 import type { PushConfig } from '../push/config';
 
 const MAX_LIMIT = 100;
-const storage = (songloft as any).persistentStorage;
 
 // ── 推送触发（通过 globalThis 调用 main.ts 中的 doPush）─────────────────────
 
@@ -164,7 +163,7 @@ export function registerStatsHandlers(router: Router): void {
   // ── 推送设置 ────────────────────────────────────────────────────────────────
 
   router.get('/api/push/config', async () => {
-    const [config, schedule] = await Promise.all([loadPushConfig(storage), loadPushSchedule(storage)]);
+    const [config, schedule] = await Promise.all([loadPushConfig(), loadPushSchedule()]);
     return jsonResponse({ success: true, data: { config, schedule } });
   });
 
@@ -177,12 +176,12 @@ export function registerStatsHandlers(router: Router): void {
         // 旧格式：{ platform, token, enabled }
         if (input.config.feishu !== undefined) {
           // 合并现有配置，避免覆盖其他平台
-          const existing = await loadPushConfig(storage);
+          const existing = await loadPushConfig();
           const merged = {
             feishu: { ...existing.feishu, ...(input.config.feishu || {}) },
             wxpusher: { ...existing.wxpusher, ...(input.config.wxpusher || {}) },
           };
-          await savePushConfig(storage, merged);
+          await savePushConfig(merged);
         } else {
           // 兼容旧格式，转换为新格式
           const platform = input.config.platform === 'feishu' || input.config.platform === 'wxpusher' ? input.config.platform : 'feishu';
@@ -194,7 +193,7 @@ export function registerStatsHandlers(router: Router): void {
             token: input.config.token || '',
             enabled: !!input.config.enabled,
           };
-          await savePushConfig(storage, newConfig);
+          await savePushConfig(newConfig);
           songloft.log.info(`[推送配置] 平台=${platform}, 启用=${input.config.enabled}`);
         }
       }
@@ -206,7 +205,7 @@ export function registerStatsHandlers(router: Router): void {
         if (typeof input.schedule.minute !== 'number' || input.schedule.minute < 0 || input.schedule.minute > 59) {
           return jsonResponse({ success: false, error: 'Invalid minute, must be 0-59' });
         }
-        await savePushSchedule(storage, input.schedule);
+        await savePushSchedule(input.schedule);
         songloft.log.info(`[推送调度] 启用=${input.schedule.enabled}, 时间=${String(input.schedule.hour).padStart(2,'0')}:${String(input.schedule.minute).padStart(2,'0')}`);
         // 调度更新后立即重新计算下次推送时间
         const scheduleNextPushFn = (globalThis as any).__songloftScheduleNextPush;
@@ -215,7 +214,7 @@ export function registerStatsHandlers(router: Router): void {
         }
       }
 
-      const [config, schedule] = await Promise.all([loadPushConfig(storage), loadPushSchedule(storage)]);
+      const [config, schedule] = await Promise.all([loadPushConfig(), loadPushSchedule()]);
       return jsonResponse({ success: true, data: { config, schedule } });
     } catch (e) {
       return jsonResponse({ success: false, error: String(e) });

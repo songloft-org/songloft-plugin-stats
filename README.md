@@ -24,7 +24,7 @@ npm run validate
 ## 要求
 
 - Songloft 宿主版本 ≥ 2.8.2（需支持 `songloft.events.onPlayEvent`）
-- 权限：`storage`、`persistent-storage`、`songs.read`
+- 权限：`storage`、`songs.read`
 
 
 ## License

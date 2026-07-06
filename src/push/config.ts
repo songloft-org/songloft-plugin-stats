@@ -21,11 +21,9 @@ function defaultPushConfig(): PushConfig {
   return { feishu: { token: '', enabled: false }, wxpusher: { token: '', enabled: false } };
 }
 
-export async function loadPushConfig(
-  storage: { get(key: string): Promise<any> },
-): Promise<PushConfig> {
+export async function loadPushConfig(): Promise<PushConfig> {
   try {
-    const raw = await storage.get(PUSH_CONFIG_KEY);
+    const raw = await songloft.storage.get(PUSH_CONFIG_KEY);
     if (raw == null) return defaultPushConfig();
     const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
     // 兼容旧格式 { platform, token, enabled }
@@ -46,18 +44,13 @@ export async function loadPushConfig(
   }
 }
 
-export async function savePushConfig(
-  storage: { set(key: string, value: any): Promise<void> },
-  config: PushConfig,
-): Promise<void> {
-  await storage.set(PUSH_CONFIG_KEY, config);
+export async function savePushConfig(config: PushConfig): Promise<void> {
+  await songloft.storage.set(PUSH_CONFIG_KEY, config);
 }
 
-export async function loadPushSchedule(
-  storage: { get(key: string): Promise<any> },
-): Promise<PushSchedule> {
+export async function loadPushSchedule(): Promise<PushSchedule> {
   try {
-    const raw = await storage.get(PUSH_SCHEDULE_KEY);
+    const raw = await songloft.storage.get(PUSH_SCHEDULE_KEY);
     if (raw == null) return { enabled: false, hour: 9, minute: 0 };
     const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
     return {
@@ -70,9 +63,6 @@ export async function loadPushSchedule(
   }
 }
 
-export async function savePushSchedule(
-  storage: { set(key: string, value: any): Promise<void> },
-  schedule: PushSchedule,
-): Promise<void> {
-  await storage.set(PUSH_SCHEDULE_KEY, schedule);
+export async function savePushSchedule(schedule: PushSchedule): Promise<void> {
+  await songloft.storage.set(PUSH_SCHEDULE_KEY, schedule);
 }
