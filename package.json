@@ -1,7 +1,7 @@
 {
   "name": "stats",
-  "version": "2026.7.1",
-  "description": "记录播放历史，统计听歌次数与艺术家排行",
+  "version": "2026.7.6",
+  "description": "记录播放历史，统计听歌次数与艺术家排行，支持定时推送听歌报告",
   "private": true,
   "homepage": "https://github.com/songloft-org/songloft-plugin-stats",
   "repository": {
@@ -16,7 +16,7 @@
     "publish:release": "songloft-plugin publish"
   },
   "devDependencies": {
-    "@songloft/plugin-builder": "^2.6.0",
+    "@songloft/plugin-builder": "^2.9.3",
     "@songloft/plugin-sdk": "^2.6.0",
     "typescript": "^5.7.0"
   }

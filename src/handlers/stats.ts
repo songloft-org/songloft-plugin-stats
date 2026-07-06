@@ -3,8 +3,22 @@ import type { Router, HTTPRequest } from '@songloft/plugin-sdk';
 import { loadHistory, getSummary, getDedupIndex, resetHistory, importRecords, exportHistory, getMaxHistory, setMaxHistory, getRecordCount } from '../stats/store';
 import { computeSummary, computeTrends, computeHourlyDistribution } from '../stats/aggregator';
 import type { TimeRange } from '../stats/types';
+import { loadPushConfig, savePushConfig, loadPushSchedule, savePushSchedule } from '../push/config';
+import type { PushConfig } from '../push/config';
 
 const MAX_LIMIT = 100;
+const storage = (songloft as any).persistentStorage;
+
+// ── 推送触发（通过 globalThis 调用 main.ts 中的 doPush）─────────────────────
+
+async function triggerPush(platform: string, isManual: boolean): Promise<void> {
+  const doPushFn = (globalThis as any).__songloftDoPush;
+  if (typeof doPushFn === 'function') {
+    await doPushFn(platform, isManual);
+  } else {
+    songloft.log.error('[推送] doPush 函数未找到');
+  }
+}
 
 /** 解析请求体（兼容 Uint8Array 和 string） */
 function parseBody(req: HTTPRequest): any {
@@ -142,6 +156,80 @@ export function registerStatsHandlers(router: Router): void {
         return jsonResponse({ success: true, data: { maxHistory: await getMaxHistory() } });
       }
       return jsonResponse({ success: false, error: '无效的 maxHistory 参数' });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // ── 推送设置 ────────────────────────────────────────────────────────────────
+
+  router.get('/api/push/config', async () => {
+    const [config, schedule] = await Promise.all([loadPushConfig(storage), loadPushSchedule(storage)]);
+    return jsonResponse({ success: true, data: { config, schedule } });
+  });
+
+  router.post('/api/push/config', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+
+      if (input.config) {
+        // 新格式：per-platform config { feishu: { token, enabled }, wxpusher: { token, enabled } }
+        // 旧格式：{ platform, token, enabled }
+        if (input.config.feishu !== undefined) {
+          // 合并现有配置，避免覆盖其他平台
+          const existing = await loadPushConfig(storage);
+          const merged = {
+            feishu: { ...existing.feishu, ...(input.config.feishu || {}) },
+            wxpusher: { ...existing.wxpusher, ...(input.config.wxpusher || {}) },
+          };
+          await savePushConfig(storage, merged);
+        } else {
+          // 兼容旧格式，转换为新格式
+          const platform = input.config.platform === 'feishu' || input.config.platform === 'wxpusher' ? input.config.platform : 'feishu';
+          const newConfig = {
+            feishu: { token: '', enabled: false },
+            wxpusher: { token: '', enabled: false },
+          };
+          newConfig[platform as keyof typeof newConfig] = {
+            token: input.config.token || '',
+            enabled: !!input.config.enabled,
+          };
+          await savePushConfig(storage, newConfig);
+          songloft.log.info(`[推送配置] 平台=${platform}, 启用=${input.config.enabled}`);
+        }
+      }
+
+      if (input.schedule) {
+        if (typeof input.schedule.hour !== 'number' || input.schedule.hour < 0 || input.schedule.hour > 23) {
+          return jsonResponse({ success: false, error: 'Invalid hour, must be 0-23' });
+        }
+        if (typeof input.schedule.minute !== 'number' || input.schedule.minute < 0 || input.schedule.minute > 59) {
+          return jsonResponse({ success: false, error: 'Invalid minute, must be 0-59' });
+        }
+        await savePushSchedule(storage, input.schedule);
+        songloft.log.info(`[推送调度] 启用=${input.schedule.enabled}, 时间=${String(input.schedule.hour).padStart(2,'0')}:${String(input.schedule.minute).padStart(2,'0')}`);
+        // 调度更新后立即重新计算下次推送时间
+        const scheduleNextPushFn = (globalThis as any).__songloftScheduleNextPush;
+        if (typeof scheduleNextPushFn === 'function') {
+          scheduleNextPushFn();
+        }
+      }
+
+      const [config, schedule] = await Promise.all([loadPushConfig(storage), loadPushSchedule(storage)]);
+      return jsonResponse({ success: true, data: { config, schedule } });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // ── 手动触发推送 ────────────────────────────────────────────────────────────
+
+  router.post('/api/push/test', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      const platform = input.platform || 'feishu';
+      await triggerPush(platform, true);
+      return jsonResponse({ success: true, message: '推送测试已发送' });
     } catch (e) {
       return jsonResponse({ success: false, error: String(e) });
     }

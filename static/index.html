@@ -114,41 +114,114 @@
 
     <!-- ── 设置面板 ──────────────────────────────────────────────────────────── -->
     <div id="tab-settings" class="tab-content">
-      <section class="panel">
-        <h2 class="panel__title">历史记录保留</h2>
-        <p class="setting-desc">
-          当前记录数：<strong id="recordCount">—</strong>
-          &nbsp;·&nbsp;
-          上限：
-          <select id="maxHistorySelect" class="setting-select">
-            <option value="5000">5,000</option>
-            <option value="10000">10,000</option>
-            <option value="20000" selected>20,000（默认）</option>
-            <option value="50000">50,000</option>
-            <option value="100000">100,000</option>
-          </select>
-        </p>
-        <div class="setting-actions">
-          <button class="btn-filled" id="btnSaveLimit">保存上限</button>
-        </div>
-      </section>
+      <!-- 子 Tab: 推送 / 历史 / 数据 -->
+      <nav class="tabs" id="settingsSubTabs">
+        <button class="tab tab--active" data-subtab="push">推送设置</button>
+        <button class="tab" data-subtab="history">历史记录</button>
+        <button class="tab" data-subtab="danger">危险操作</button>
+      </nav>
 
-      <section class="panel">
-        <h2 class="panel__title">数据管理</h2>
-        <div class="setting-actions setting-actions--row">
-          <button class="btn-filled" id="btnExport">导出数据</button>
-          <button class="btn-outlined" id="btnImport">导入数据</button>
-          <input type="file" id="importFile" accept=".json" style="display:none">
-        </div>
-      </section>
+      <!-- ── 推送设置 ──────────────────────────────────────────────────────── -->
+      <div id="subtab-push" class="subtab-content active">
+        <section class="panel">
+          <h2 class="panel__title">推送平台</h2>
+          <div class="push-form-group">
+            <label for="pushPlatformSelect">平台</label>
+            <select id="pushPlatformSelect" class="setting-select">
+              <option value="feishu">飞书群机器人</option>
+              <option value="wxpusher">WxPusher（极简推送SPT-推荐）</option>
+            </select>
+          </div>
+          <div class="push-form-group">
+            <label for="pushTokenInput" id="pushTokenLabel">larkKey</label>
+            <input type="text" id="pushTokenInput" class="setting-input" placeholder="请输入飞书机器人 webhook key">
+            <div id="pushHelpText" class="push-help-text"></div>
+          </div>
+          <div id="pushQrCode" class="push-qr-section" style="display:none;">
+            <img id="pushQrImg" src="" alt="WxPusher SPT 二维码" class="push-qr-img">
+          </div>
+          <div class="push-form-group">
+            <label class="push-toggle-label">
+              <input type="checkbox" id="pushEnabledCheck">
+              <span>启用推送</span>
+            </label>
+          </div>
+          <div class="setting-actions">
+            <button class="btn-filled" id="btnSavePushConfig">保存配置</button>
+          </div>
+        </section>
 
-      <section class="panel panel--danger">
-        <h2 class="panel__title">危险操作</h2>
-        <p class="setting-desc">清空所有播放统计数据，此操作不可撤销。</p>
-        <div class="setting-actions">
-          <button class="btn-filled danger" id="btnReset">重置统计数据</button>
-        </div>
-      </section>
+        <section class="panel">
+          <h2 class="panel__title">推送时间</h2>
+          <div class="push-form-group">
+            <label class="push-toggle-label">
+              <input type="checkbox" id="pushScheduleEnabledCheck">
+              <span>启用定时推送</span>
+            </label>
+          </div>
+          <div class="push-form-group push-time-group">
+            <label for="pushHourInput">推送时间</label>
+            <div class="push-time-inputs">
+              <input type="number" id="pushHourInput" class="setting-input push-time-num" min="0" max="23" placeholder="时">
+              <span class="push-time-sep">:</span>
+              <input type="number" id="pushMinuteInput" class="setting-input push-time-num" min="0" max="59" placeholder="分">
+            </div>
+          </div>
+          <div class="setting-actions">
+            <button class="btn-filled" id="btnSavePushSchedule">保存时间</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel__title">测试推送</h2>
+          <p class="setting-desc">点击按钮立即发送一条测试推送，验证配置是否正确。</p>
+          <div class="setting-actions">
+            <button class="btn-outlined" id="btnTestPush">发送测试推送</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- ── 历史记录 ──────────────────────────────────────────────────────── -->
+      <div id="subtab-history" class="subtab-content">
+        <section class="panel">
+          <h2 class="panel__title">历史记录保留</h2>
+          <p class="setting-desc">
+            当前记录数：<strong id="recordCount">—</strong>
+            &nbsp;·&nbsp;
+            上限：
+            <select id="maxHistorySelect" class="setting-select">
+              <option value="5000">5,000</option>
+              <option value="10000">10,000</option>
+              <option value="20000" selected>20,000（默认）</option>
+              <option value="50000">50,000</option>
+              <option value="100000">100,000</option>
+            </select>
+          </p>
+          <div class="setting-actions">
+            <button class="btn-filled" id="btnSaveLimit">保存上限</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel__title">数据管理</h2>
+          <div class="setting-actions setting-actions--row">
+            <button class="btn-filled" id="btnExport">导出数据</button>
+            <button class="btn-outlined" id="btnImport">导入数据</button>
+            <input type="file" id="importFile" accept=".json" style="display:none">
+          </div>
+        </section>
+      </div>
+
+      <!-- ── 危险操作 ──────────────────────────────────────────────────────── -->
+      <div id="subtab-danger" class="subtab-content">
+        <section class="panel panel--danger">
+          <h2 class="panel__title">危险操作</h2>
+          <p class="setting-desc">清空所有播放统计数据，此操作不可撤销。</p>
+          <div class="setting-actions">
+            <button class="btn-filled danger" id="btnReset">重置统计数据</button>
+          </div>
+        </section>
+      </div>
 
       <div class="toast" id="toast"></div>
     </div>
