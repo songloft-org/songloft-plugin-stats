@@ -1,6 +1,5 @@
 import type { PlayEvent } from '@songloft/plugin-sdk';
 import type { PlayRecord, StatsSummary } from './types';
-import { computeSummary } from './aggregator';
 
 const HISTORY_KEY = 'play_history';
 const SETTINGS_KEY = 'settings';
@@ -38,8 +37,11 @@ export async function setMaxHistory(limit: number): Promise<void> {
   // 如果当前数据超过新上限，立即裁剪
   const history = await loadHistory();
   if (history.length > clamped) {
-    summaryDirty = true;
     await flushSave(history);
+    // 裁剪后重建增量聚合状态
+    if (incInitialized) {
+      rebuildIncState(cache!);
+    }
   }
 }
 
@@ -68,9 +70,82 @@ export async function getSongMeta(songId: number): Promise<{ album?: string; dur
 // ── 内存缓存 ──────────────────────────────────────────────────────────────────
 let cache: PlayRecord[] | null = null;
 
-// ── 聚合结果缓存（dirty 标记）──────────────────────────────────────────────────
-let summaryDirty = true;
-let cachedSummary: StatsSummary | null = null;
+// ── 聚合增量状态（增量更新，避免全量遍历）───────────────────────────────────────
+// 仅在 appendRecord 时增量更新；导入/重置时退回全量计算
+const incArtistMap = new Map<string, number>();
+const incSongMap = new Map<number, { title: string; artist: string; plays: number }>();
+const incAlbumMap = new Map<string, number>();
+const incBySource: Record<string, number> = {};
+const incUniqueSongs = new Set<number>();
+const incUniqueArtists = new Set<string>();
+let incTotalDurationSec = 0;
+let incTotalPlays = 0;
+let incInitialized = false;
+
+/** 从全量记录重建增量聚合状态（仅在导入/重置后调用） */
+function rebuildIncState(records: PlayRecord[]): void {
+  incArtistMap.clear();
+  incSongMap.clear();
+  incAlbumMap.clear();
+  const newBySource: Record<string, number> = {};
+  incUniqueSongs.clear();
+  incUniqueArtists.clear();
+  incTotalDurationSec = 0;
+  incTotalPlays = 0;
+
+  for (const r of records) {
+    if (!r || typeof r.songId !== 'number' || typeof r.artist !== 'string' || typeof r.title !== 'string') continue;
+    incTotalPlays++;
+    incUniqueSongs.add(r.songId);
+    incUniqueArtists.add(r.artist);
+    incTotalDurationSec += r.duration || 0;
+    incArtistMap.set(r.artist, (incArtistMap.get(r.artist) || 0) + 1);
+    const existingSong = incSongMap.get(r.songId);
+    if (existingSong) {
+      existingSong.plays++;
+    } else {
+      incSongMap.set(r.songId, { title: r.title, artist: r.artist, plays: 1 });
+    }
+    if (r.album) {
+      incAlbumMap.set(r.album, (incAlbumMap.get(r.album) || 0) + 1);
+    }
+    const src = r.source || 'unknown';
+    newBySource[src] = (newBySource[src] || 0) + 1;
+  }
+  // 替换 incBySource 对象引用
+  for (const key of Object.keys(incBySource)) delete incBySource[key];
+  Object.assign(incBySource, newBySource);
+  incInitialized = true;
+}
+
+/** 从增量聚合状态构建 StatsSummary */
+function buildIncSummary(): StatsSummary {
+  const topArtists = [...incArtistMap.entries()]
+    .map(([artist, plays]) => ({ artist, plays }))
+    .sort((a, b) => b.plays - a.plays)
+    .slice(0, 10);
+
+  const topSongs = [...incSongMap.entries()]
+    .map(([songId, v]) => ({ songId, ...v }))
+    .sort((a, b) => b.plays - a.plays)
+    .slice(0, 10);
+
+  const topAlbums = [...incAlbumMap.entries()]
+    .map(([album, plays]) => ({ album, plays }))
+    .sort((a, b) => b.plays - a.plays)
+    .slice(0, 10);
+
+  return {
+    totalPlays: incTotalPlays,
+    totalDurationSec: incTotalDurationSec,
+    uniqueSongs: incUniqueSongs.size,
+    uniqueArtists: incUniqueArtists.size,
+    topArtists,
+    topSongs,
+    topAlbums,
+    bySource: incBySource,
+  };
+}
 
 // ── 去重索引: songId → cache 中最后一次出现的 index ─────────────────────────────
 let dedupIndex: Map<number, number> | null = null;
@@ -101,6 +176,10 @@ async function readRaw(): Promise<PlayRecord[]> {
 export async function loadHistory(): Promise<PlayRecord[]> {
   if (cache) return cache;
   cache = await readRaw();
+  // 首次加载时初始化增量聚合状态
+  if (!incInitialized) {
+    rebuildIncState(cache);
+  }
   return cache;
 }
 
@@ -121,22 +200,45 @@ export async function drainWrites(): Promise<void> {
 }
 
 async function flushSave(records: PlayRecord[]): Promise<void> {
-  const limit = DEFAULT_MAX_HISTORY;
+  const limit = await getMaxHistory();
   const trimmed = records.length > limit ? records.slice(-limit) : records;
   await songloft.storage.set(HISTORY_KEY, trimmed);
   cache = trimmed;
-  dedupIndex = null; // 下次查询时按需重建
+  // 增量更新去重索引，而非下次查询时全量重建
+  if (dedupIndex) {
+    // 裁剪后保留的索引项需重新映射位置
+    const newIdx = buildDedupIndex(trimmed);
+    dedupIndex = newIdx;
+  }
 }
 
 // ── 记录写入 ──────────────────────────────────────────────────────────────────
 
-/** 获取聚合摘要（带 dirty 缓存，仅数据变更时重算）*/
+/** 获取聚合摘要（基于增量状态，O(1) 排序开销），首次调用确保已初始化 */
 export async function getSummary(): Promise<StatsSummary> {
-  if (!summaryDirty && cachedSummary) return cachedSummary;
-  const history = await loadHistory();
-  cachedSummary = computeSummary(history);
-  summaryDirty = false;
-  return cachedSummary;
+  await loadHistory(); // 确保 incInitialized
+  return buildIncSummary();
+}
+
+/** 增量追加一条记录到聚合状态 */
+function incAppendRecord(record: PlayRecord): void {
+  if (!incInitialized) return;
+  incTotalPlays++;
+  incUniqueSongs.add(record.songId);
+  incUniqueArtists.add(record.artist);
+  incTotalDurationSec += record.duration || 0;
+  incArtistMap.set(record.artist, (incArtistMap.get(record.artist) || 0) + 1);
+  const existingSong = incSongMap.get(record.songId);
+  if (existingSong) {
+    existingSong.plays++;
+  } else {
+    incSongMap.set(record.songId, { title: record.title, artist: record.artist, plays: 1 });
+  }
+  if (record.album) {
+    incAlbumMap.set(record.album, (incAlbumMap.get(record.album) || 0) + 1);
+  }
+  const src = record.source || 'unknown';
+  incBySource[src] = (incBySource[src] || 0) + 1;
 }
 
 async function doAppend(event: PlayEvent): Promise<PlayRecord> {
@@ -156,7 +258,7 @@ async function doAppend(event: PlayEvent): Promise<PlayRecord> {
 
   const history = await loadHistory();
   history.push(record);
-  summaryDirty = true;
+  incAppendRecord(record); // 增量更新聚合状态
   await flushSave(history);
   return record;
 }
@@ -204,8 +306,11 @@ export async function importRecords(newRecords: PlayRecord[]): Promise<number> {
   if (added > 0) {
     // 按 timestamp 排序
     history.sort((a, b) => a.timestamp - b.timestamp);
-    summaryDirty = true;
     await flushSave(history);
+    // 导入后重建增量聚合状态
+    if (incInitialized) {
+      rebuildIncState(cache!);
+    }
   }
 
   return added;
@@ -222,6 +327,14 @@ export async function resetHistory(): Promise<void> {
   await songloft.storage.delete(HISTORY_KEY);
   cache = [];
   dedupIndex = null;
-  summaryDirty = true;
-  cachedSummary = null;
+  // 重置增量聚合状态
+  incArtistMap.clear();
+  incSongMap.clear();
+  incAlbumMap.clear();
+  for (const key of Object.keys(incBySource)) delete incBySource[key];
+  incUniqueSongs.clear();
+  incUniqueArtists.clear();
+  incTotalDurationSec = 0;
+  incTotalPlays = 0;
+  incInitialized = true; // 已初始化但为空
 }

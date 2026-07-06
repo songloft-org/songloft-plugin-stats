@@ -407,6 +407,23 @@ function switchTab(range) {
 
 // ── 设置页逻辑 ────────────────────────────────────────────────────────────────
 
+/** 刷新统计 Tab 数据（无论当前是否在统计页都会预加载） */
+function refreshStatsTab() {
+  // 清空历史列表，避免残留旧数据
+  document.getElementById('historyList').innerHTML = '<li class="history-list__empty">加载中…</li>';
+  document.getElementById('historyList').removeAttribute('data-append');
+  historyOffset = 0;
+  document.getElementById('historyFooter').style.display = 'none';
+  // 如果当前在统计 Tab，立即刷新；否则预加载，切回来时自动显示
+  const statsTab = document.getElementById('tab-stats');
+  if (statsTab && statsTab.classList.contains('active')) {
+    loadData(currentRange, false);
+  } else {
+    // 后台预加载
+    loadData(currentRange, false);
+  }
+}
+
 function showToast(msg, ok = true) {
   const el = document.getElementById('toast');
   if (!el) return;
@@ -435,6 +452,7 @@ document.getElementById('btnSaveLimit').addEventListener('click', async () => {
     if (resp.success) {
       showToast(`历史上限已设为 ${resp.data.maxHistory.toLocaleString()} 条`);
       loadSettings();
+      refreshStatsTab();
     } else {
       showToast((resp && resp.error) || '保存失败', false);
     }
@@ -479,6 +497,7 @@ document.getElementById('importFile').addEventListener('change', async (e) => {
     if (resp.success) {
       showToast(`导入成功，新增 ${resp.data.added} 条记录`);
       loadSettings();
+      refreshStatsTab();
     } else {
       showToast((resp && resp.error) || '导入失败', false);
     }
@@ -496,6 +515,7 @@ document.getElementById('btnReset').addEventListener('click', async () => {
     if (resp.success) {
       showToast('统计数据已清空');
       loadSettings();
+      refreshStatsTab();
     }
   } catch (e) {
     showToast('重置失败: ' + String(e), false);
