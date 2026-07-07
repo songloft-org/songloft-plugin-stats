@@ -5,6 +5,8 @@ import { computeSummary, computeTrends, computeHourlyDistribution } from '../sta
 import type { TimeRange } from '../stats/types';
 import { loadPushConfig, savePushConfig, loadPushSchedule, savePushSchedule } from '../push/config';
 import type { PushConfig } from '../push/config';
+import { getBackupDavConfigs, saveBackupDavConfigs, getBackupDavConfig, loadBackupSchedule, saveBackupSchedule, BackupDavConfig } from '../backup/config';
+import { testConnection, listDirectory, uploadBackup, downloadBackup } from '../backup/client';
 
 const MAX_LIMIT = 100;
 
@@ -229,6 +231,159 @@ export function registerStatsHandlers(router: Router): void {
       const platform = input.platform || 'feishu';
       await triggerPush(platform, true);
       return jsonResponse({ success: true, message: '推送测试已发送' });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // ── 备份设置 ────────────────────────────────────────────────────────────────
+
+  router.get('/api/backup/webdav/config', async () => {
+    const configs = await getBackupDavConfigs();
+    return jsonResponse({ success: true, data: configs });
+  });
+
+  router.post('/api/backup/webdav/config', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      const configs = await getBackupDavConfigs();
+
+      if (input.action === 'add' || input.action === 'update') {
+        const existing = configs.findIndex(c => c.name === input.name);
+        if (existing >= 0) {
+          configs[existing] = input.config;
+        } else {
+          configs.push(input.config);
+        }
+      } else if (input.action === 'delete') {
+        const filtered = configs.filter(c => c.name !== input.name);
+        await saveBackupDavConfigs(filtered);
+        return jsonResponse({ success: true });
+      }
+
+      await saveBackupDavConfigs(configs);
+      return jsonResponse({ success: true });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.post('/api/backup/webdav/test', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      const connected = await testConnection(input.config as BackupDavConfig);
+      return jsonResponse({ success: true, data: { connected } });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.get('/api/backup/webdav/list', async (req: HTTPRequest) => {
+    try {
+      const q = parseQuery(req.query);
+      const configName = q.configName ? String(q.configName) : '';
+      const path = q.path ? String(q.path) : '/';
+
+      if (!configName) {
+        return jsonResponse({ success: false, error: '缺少 configName' });
+      }
+
+      const config = await getBackupDavConfig(configName);
+      if (!config) {
+        return jsonResponse({ success: false, error: '配置不存在' });
+      }
+
+      const items = await listDirectory(config, path);
+      // 过滤出备份文件（stats-backup-*.json）
+      const backupFiles = items
+        .filter(item => item.type === 'file' && item.basename.startsWith('stats-backup-') && item.basename.endsWith('.json'))
+        .map(item => ({
+          name: item.basename,
+          size: item.size,
+          lastmod: item.lastmod,
+          path: item.filename
+        }));
+
+      return jsonResponse({ success: true, data: backupFiles });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.post('/api/backup/upload', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      const configName = input.configName as string;
+
+      if (!configName) {
+        return jsonResponse({ success: false, error: '缺少配置名称' });
+      }
+
+      const config = await getBackupDavConfig(configName);
+      if (!config) {
+        return jsonResponse({ success: false, error: '配置不存在' });
+      }
+
+      const history = await exportHistory();
+      const backupData = {
+        version: 1,
+        exportedAt: Date.now(),
+        records: history
+      };
+      const jsonContent = JSON.stringify(backupData, null, 2);
+      const fileName = `stats-backup-${Date.now()}.json`;
+
+      await uploadBackup(config, fileName, jsonContent);
+      songloft.log.info(`[备份] 上传成功: ${fileName}`);
+
+      return jsonResponse({ success: true, data: { fileName } });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.post('/api/backup/download', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      const configName = input.configName as string;
+      const fileName = input.fileName as string;
+
+      if (!configName || !fileName) {
+        return jsonResponse({ success: false, error: '缺少必要参数' });
+      }
+
+      const config = await getBackupDavConfig(configName);
+      if (!config) {
+        return jsonResponse({ success: false, error: '配置不存在' });
+      }
+
+      const content = await downloadBackup(config, fileName);
+      const backupData = JSON.parse(content);
+
+      return jsonResponse({ success: true, data: backupData });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // ── 定时备份 ────────────────────────────────────────────────────────────────
+
+  router.get('/api/backup/schedule', async () => {
+    const schedule = await loadBackupSchedule();
+    return jsonResponse({ success: true, data: schedule });
+  });
+
+  router.post('/api/backup/schedule', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      if (input.action === 'save') {
+        await saveBackupSchedule(input.schedule);
+        // 重新调度
+        if ((globalThis as any).__songloftScheduleNextBackup) {
+          (globalThis as any).__songloftScheduleNextBackup();
+        }
+      }
+      return jsonResponse({ success: true });
     } catch (e) {
       return jsonResponse({ success: false, error: String(e) });
     }

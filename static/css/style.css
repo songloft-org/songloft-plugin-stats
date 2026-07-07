@@ -741,3 +741,36 @@ body {
   border: 1px solid var(--md-outline);
   border-radius: 8px;
 }
+
+/* ── 备份设置 ────────────────────────────────────────────────────────────── */
+
+.backup-server-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+
+.backup-server-item:last-child {
+  border-bottom: none;
+}
+
+.backup-server-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.backup-server-name {
+  font-weight: 500;
+  color: var(--md-on-surface);
+  font-size: 0.9rem;
+}
+
+.backup-server-url {
+  font-size: 0.8rem;
+  color: var(--md-on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

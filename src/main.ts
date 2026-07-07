@@ -2,7 +2,7 @@
 import { createRouter } from '@songloft/plugin-sdk';
 import type { HTTPRequest, HTTPResponse, PlayEvent } from '@songloft/plugin-sdk';
 import { registerStatsHandlers } from './handlers/stats';
-import { appendRecord, drainWrites, getRecordCount, getSongMeta, loadHistory } from './stats/store';
+import { appendRecord, drainWrites, getRecordCount, getSongMeta, loadHistory, exportHistory } from './stats/store';
 import { getSummary } from './stats/store';
 import { computeSummary } from './stats/aggregator';
 import type { TimeRange } from './stats/types';
@@ -58,6 +58,8 @@ async function isDuplicate(songId: number, timestamp: number): Promise<boolean> 
 // ── 推送配置 ──────────────────────────────────────────────────────────────────
 import { loadPushConfig, loadPushSchedule } from './push/config';
 import type { PushConfig, PushSchedule } from './push/config';
+import { getBackupDavConfig, loadBackupSchedule, saveBackupSchedule, BackupSchedule } from './backup/config';
+import { uploadBackup } from './backup/client';
 
 // ── 推送平台消息构造 ──────────────────────────────────────────────────────────
 
@@ -242,6 +244,146 @@ function scheduleNextPush(): void {
 // 暴露给 handler 使用
 (globalThis as any).__songloftDoPush = doPush;
 (globalThis as any).__songloftScheduleNextPush = scheduleNextPush;
+(globalThis as any).__songloftScheduleNextBackup = scheduleNextBackup;
+
+// ── 备份执行 ──────────────────────────────────────────────────────────────────
+
+let backupTimerId: number | null = null;
+let backupInProgress = false;
+
+function buildBackupPushContent(success: boolean, fileName?: string, recordCount?: number, error?: string): { title: string; content: string } {
+  const lines: string[] = [];
+
+  if (success) {
+    lines.push('✅ 备份成功');
+    lines.push(`📁 文件名: ${fileName || ''}`);
+    if (recordCount != null) {
+      lines.push(`📊 记录数: ${recordCount}`);
+    }
+    lines.push(`⏰ 时间: ${new Date().toLocaleString('zh-CN')}`);
+  } else {
+    lines.push('❌ 备份失败');
+    if (error) {
+      lines.push(`⚠️ 原因: ${error}`);
+    }
+    lines.push(`⏰ 时间: ${new Date().toLocaleString('zh-CN')}`);
+  }
+
+  return {
+    title: '📦 播放统计备份',
+    content: lines.join('\n'),
+  };
+}
+
+async function doBackup(): Promise<void> {
+  if (backupInProgress) {
+    songloft.log.warn('[备份] 上一次备份尚未完成，跳过本次调度');
+    return;
+  }
+
+  const schedule = await loadBackupSchedule();
+  if (!schedule.enabled || !schedule.configName) {
+    songloft.log.info('[备份] 定时备份未启用或配置不存在，跳过');
+    return;
+  }
+
+  const config = await getBackupDavConfig(schedule.configName);
+  if (!config) {
+    songloft.log.error(`[备份] 配置 "${schedule.configName}" 不存在`);
+    // 禁用该配置
+    await saveBackupSchedule({ ...schedule, configName: '' });
+    return;
+  }
+
+  backupInProgress = true;
+  songloft.log.info(`[备份] 开始定时备份 (配置: ${schedule.configName})`);
+
+  try {
+    const history = await exportHistory();
+    const recordCount = history.length;
+    const backupData = {
+      version: 1,
+      exportedAt: Date.now(),
+      records: history
+    };
+    const jsonContent = JSON.stringify(backupData, null, 2);
+    const fileName = `stats-backup-${Date.now()}.json`;
+
+    await uploadBackup(config, fileName, jsonContent);
+    songloft.log.info(`[备份] 上传成功: ${fileName}`);
+
+    // 备份成功，推送通知
+    const { title, content } = buildBackupPushContent(true, fileName, recordCount);
+    const pushConfig = await loadPushConfig();
+    const platforms: (keyof PushConfig)[] = ['feishu', 'wxpusher'];
+    for (const platform of platforms) {
+      if (pushConfig[platform]?.enabled && pushConfig[platform]?.token) {
+        const pusher = PLATFORM_PUSHERS[platform];
+        if (pusher) {
+          try {
+            await pusher(pushConfig[platform].token, title, content);
+          } catch (e) {
+            songloft.log.error(`[备份] 推送通知失败 (${platform}): ${String(e)}`);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    songloft.log.error(`[备份] 失败: ${String(e)}`);
+
+    // 备份失败，推送通知
+    const { title, content } = buildBackupPushContent(false, undefined, undefined, String(e));
+    const pushConfig = await loadPushConfig();
+    const platforms: (keyof PushConfig)[] = ['feishu', 'wxpusher'];
+    for (const platform of platforms) {
+      if (pushConfig[platform]?.enabled && pushConfig[platform]?.token) {
+        const pusher = PLATFORM_PUSHERS[platform];
+        if (pusher) {
+          try {
+            await pusher(pushConfig[platform].token, title, content);
+          } catch (pushErr) {
+            songloft.log.error(`[备份] 推送通知失败 (${platform}): ${String(pushErr)}`);
+          }
+        }
+      }
+    }
+  } finally {
+    backupInProgress = false;
+  }
+}
+
+function scheduleNextBackup(): void {
+  if (backupTimerId !== null) {
+    clearTimeout(backupTimerId);
+    backupTimerId = null;
+  }
+
+  loadBackupSchedule()
+    .then((schedule: BackupSchedule) => {
+      if (!schedule || !schedule.enabled || !schedule.configName) return;
+
+      const now = Date.now();
+      const todayStart = new Date(now);
+      todayStart.setHours(schedule.hour, schedule.minute, 0, 0);
+      let nextFire = todayStart.getTime();
+
+      if (nextFire <= now) {
+        nextFire += 86400000;
+      }
+
+      const delay = nextFire - now;
+      songloft.log.info(`[备份调度] 下次备份: ${new Date(nextFire).toLocaleString('zh-CN')} (延迟 ${Math.round(delay / 60000)} 分钟)`);
+
+      backupTimerId = setTimeout(async () => {
+        await doBackup();
+        scheduleNextBackup();
+      }, delay);
+    })
+    .catch((err: unknown) => {
+      songloft.log.error(`[备份调度] 加载调度配置失败: ${String(err)}`);
+      setTimeout(() => scheduleNextBackup(), 5 * 60 * 1000);
+    });
+}
 
 // ── 里程碑检测 ─────────────────────────────────────────────────────────────────
 const MILESTONE_COUNTS = [10, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
@@ -294,6 +436,8 @@ async function onInit(): Promise<void> {
   subscribePlayEvents();
   // 启动定时推送调度
   scheduleNextPush();
+  // 启动定时备份调度
+  scheduleNextBackup();
 }
 
 async function onDeinit(): Promise<void> {
@@ -303,6 +447,11 @@ async function onDeinit(): Promise<void> {
   if (pushTimerId !== null) {
     clearTimeout(pushTimerId);
     pushTimerId = null;
+  }
+  // 清理备份定时器
+  if (backupTimerId !== null) {
+    clearTimeout(backupTimerId);
+    backupTimerId = null;
   }
   songloft.log.info('播放统计插件已停止');
 }

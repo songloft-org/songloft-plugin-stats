@@ -114,9 +114,10 @@
 
     <!-- ── 设置面板 ──────────────────────────────────────────────────────────── -->
     <div id="tab-settings" class="tab-content">
-      <!-- 子 Tab: 推送 / 历史 / 数据 -->
+      <!-- 子 Tab: 推送 / 备份 / 历史 / 危险操作 -->
       <nav class="tabs" id="settingsSubTabs">
         <button class="tab tab--active" data-subtab="push">推送设置</button>
+        <button class="tab" data-subtab="backup">备份设置</button>
         <button class="tab" data-subtab="history">历史记录</button>
         <button class="tab" data-subtab="danger">危险操作</button>
       </nav>
@@ -177,6 +178,104 @@
           <p class="setting-desc">点击按钮立即发送一条测试推送，验证配置是否正确。</p>
           <div class="setting-actions">
             <button class="btn-outlined" id="btnTestPush">发送测试推送</button>
+          </div>
+        </section>
+      </div>
+
+      <!-- ── 备份设置 ──────────────────────────────────────────────────────── -->
+      <div id="subtab-backup" class="subtab-content">
+        <section class="panel">
+          <h2 class="panel__title">添加 WebDAV 服务器</h2>
+          <div class="push-form-group">
+            <label for="backupDavName">配置名称</label>
+            <input type="text" id="backupDavName" class="setting-input" placeholder="例如：NAS">
+          </div>
+          <div class="push-form-group">
+            <label for="backupDavUrl">服务器地址</label>
+            <input type="text" id="backupDavUrl" class="setting-input" placeholder="例如：https://nas.example.com/webdav">
+          </div>
+          <div class="push-form-group">
+            <label for="backupDavUsername">用户名</label>
+            <input type="text" id="backupDavUsername" class="setting-input" placeholder="WebDAV 用户名">
+          </div>
+          <div class="push-form-group">
+            <label for="backupDavPassword">密码</label>
+            <input type="password" id="backupDavPassword" class="setting-input" placeholder="WebDAV 密码">
+          </div>
+          <div class="setting-actions setting-actions--row">
+            <button class="btn-outlined" id="btnTestBackup">测试连接</button>
+            <button class="btn-filled" id="btnSaveBackupConfig">保存配置</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel__title">已配置的服务器</h2>
+          <div id="backupServerList">
+            <p class="setting-desc">暂无配置</p>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel__title">备份数据</h2>
+          <p class="setting-desc">将播放统计数据上传到已配置的 WebDAV 服务器。</p>
+          <div class="push-form-group">
+            <label for="backupServerSelect">选择服务器</label>
+            <select id="backupServerSelect" class="setting-select">
+              <option value="">请先添加配置</option>
+            </select>
+          </div>
+          <div class="setting-actions">
+            <button class="btn-filled" id="btnUploadBackup">上传备份</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel__title">恢复数据</h2>
+          <p class="setting-desc">从 WebDAV 服务器下载备份文件并导入数据。</p>
+          <div class="push-form-group">
+            <label for="restoreServerSelect">选择服务器</label>
+            <select id="restoreServerSelect" class="setting-select">
+              <option value="">请先添加配置</option>
+            </select>
+          </div>
+          <div class="push-form-group">
+            <label for="backupFileSelect">选择备份文件</label>
+            <select id="backupFileSelect" class="setting-select" disabled>
+              <option value="">请先选择服务器</option>
+            </select>
+          </div>
+          <div class="setting-actions">
+            <button class="btn-outlined" id="btnRefreshBackupFiles">刷新文件列表</button>
+            <button class="btn-filled" id="btnDownloadBackup">恢复数据</button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel__title">定时备份</h2>
+          <p class="setting-desc">设置定时自动备份，备份成功或失败都会推送到指定平台。</p>
+          <div class="push-form-group">
+            <label>
+              <input type="checkbox" id="backupScheduleEnabled" class="setting-checkbox">
+              启用定时备份
+            </label>
+          </div>
+          <div class="push-form-group">
+            <label for="backupScheduleHour">备份时间</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <select id="backupScheduleHour" class="setting-select" style="flex:1;"></select>
+              <span>时</span>
+              <select id="backupScheduleMinute" class="setting-select" style="flex:1;"></select>
+              <span>分</span>
+            </div>
+          </div>
+          <div class="push-form-group">
+            <label for="backupScheduleServerSelect">选择服务器</label>
+            <select id="backupScheduleServerSelect" class="setting-select">
+              <option value="">请先添加配置</option>
+            </select>
+          </div>
+          <div class="setting-actions">
+            <button class="btn-filled" id="btnSaveBackupSchedule">保存定时设置</button>
           </div>
         </section>
       </div>
