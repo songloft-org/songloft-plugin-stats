@@ -652,8 +652,26 @@ document.getElementById('btnSavePushConfig').addEventListener('click', async () 
 
 document.getElementById('btnSavePushSchedule').addEventListener('click', async () => {
   pushSchedule.enabled = document.getElementById('pushScheduleEnabledCheck').checked;
-  pushSchedule.hour = Math.max(0, Math.min(23, parseInt(document.getElementById('pushHourInput').value, 10) || 9));
-  pushSchedule.minute = Math.max(0, Math.min(59, parseInt(document.getElementById('pushMinuteInput').value, 10) || 0));
+  const hourInput = document.getElementById('pushHourInput').value.trim();
+  const minuteInput = document.getElementById('pushMinuteInput').value.trim();
+  
+  // 验证 hour
+  const hour = parseInt(hourInput, 10);
+  if (isNaN(hour) || hour < 0 || hour > 23 || String(hour) !== hourInput) {
+    showToast('请输入有效的小时（0-23）', false);
+    return;
+  }
+  
+  // 验证 minute
+  const minute = parseInt(minuteInput, 10);
+  if (isNaN(minute) || minute < 0 || minute > 59 || String(minute) !== minuteInput) {
+    showToast('请输入有效的分钟（0-59）', false);
+    return;
+  }
+  
+  pushSchedule.hour = hour;
+  pushSchedule.minute = minute;
+  
   if (pushSchedule.enabled) {
     // 检查所有已启用平台是否都有 token
     const platforms = ['feishu', 'wxpusher'];
@@ -666,6 +684,7 @@ document.getElementById('btnSavePushSchedule').addEventListener('click', async (
       }
     }
   }
+  
   try {
     const resp = await apiPost('/api/push/config', { schedule: pushSchedule });
     if (resp.success) {

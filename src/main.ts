@@ -221,7 +221,7 @@ function scheduleNextPush(): void {
 
     pushTimerId = setTimeout(async () => {
       // 推送所有已启用的平台
-      const config = await loadPushConfig(persistentStorage);
+      const config = await loadPushConfig();
       const platforms: (keyof PushConfig)[] = ['feishu', 'wxpusher'];
       for (const platform of platforms) {
         if (config[platform]?.enabled && config[platform]?.token) {
