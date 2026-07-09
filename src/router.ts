@@ -1,24 +1,19 @@
-import { jsonResponse, parseQuery } from '@songloft/plugin-sdk';
+/// <reference types="@songloft/plugin-sdk" />
+import { createRouter, jsonResponse, parseQuery } from '@songloft/plugin-sdk';
 import type { Router, HTTPRequest } from '@songloft/plugin-sdk';
-import { loadHistory, getSummary, getDedupIndex, resetHistory, importRecords, exportHistory, getMaxHistory, setMaxHistory, getRecordCount } from '../stats/store';
-import { computeSummary, computeTrends, computeHourlyDistribution } from '../stats/aggregator';
-import type { TimeRange } from '../stats/types';
-import { loadPushConfig, savePushConfig, loadPushSchedule, savePushSchedule } from '../push/config';
-import type { PushConfig } from '../push/config';
-import { getBackupDavConfigs, saveBackupDavConfigs, getBackupDavConfig, loadBackupSchedule, saveBackupSchedule, BackupDavConfig } from '../backup/config';
-import { testConnection, listDirectory, uploadBackup, downloadBackup } from '../backup/client';
+import { loadHistory, getSummary, getDedupIndex, resetHistory, importRecords, exportHistory, getMaxHistory, setMaxHistory, getRecordCount } from './store';
+import { computeSummary, computeTrends, computeHourlyDistribution } from './aggregator';
+import type { TimeRange } from './types';
+import { loadPushConfig, savePushConfig, loadPushSchedule, savePushSchedule } from './push/config';
+import { getBackupDavConfigs, saveBackupDavConfigs, getBackupDavConfig, loadBackupSchedule, saveBackupSchedule, BackupDavConfig } from './backup/config';
+import { testConnection, listDirectory, uploadBackup, downloadBackup } from './webdav';
+import { doPush, scheduleNextPush, scheduleNextBackup } from './scheduler';
 
 const MAX_LIMIT = 100;
 
-// ── 推送触发（通过 globalThis 调用 main.ts 中的 doPush）─────────────────────
-
+/** 手动触发推送 */
 async function triggerPush(platform: string, isManual: boolean): Promise<void> {
-  const doPushFn = (globalThis as any).__songloftDoPush;
-  if (typeof doPushFn === 'function') {
-    await doPushFn(platform, isManual);
-  } else {
-    songloft.log.error('[推送] doPush 函数未找到');
-  }
+  await doPush(platform, isManual);
 }
 
 /** 解析请求体（兼容 Uint8Array 和 string） */
@@ -47,7 +42,7 @@ function parseTimeQuery(q: Record<string, unknown>): TimeRange | undefined {
   return range;
 }
 
-export function registerStatsHandlers(router: Router): void {
+function registerStatsHandlers(router: Router): void {
   router.get('/api/stats/summary', async (req) => {
     const range = parseTimeQuery(parseQuery(req.query));
     if (range) {
@@ -210,10 +205,7 @@ export function registerStatsHandlers(router: Router): void {
         await savePushSchedule(input.schedule);
         songloft.log.info(`[推送调度] 启用=${input.schedule.enabled}, 时间=${String(input.schedule.hour).padStart(2,'0')}:${String(input.schedule.minute).padStart(2,'0')}`);
         // 调度更新后立即重新计算下次推送时间
-        const scheduleNextPushFn = (globalThis as any).__songloftScheduleNextPush;
-        if (typeof scheduleNextPushFn === 'function') {
-          scheduleNextPushFn();
-        }
+        scheduleNextPush();
       }
 
       const [config, schedule] = await Promise.all([loadPushConfig(), loadPushSchedule()]);
@@ -379,9 +371,7 @@ export function registerStatsHandlers(router: Router): void {
       if (input.action === 'save') {
         await saveBackupSchedule(input.schedule);
         // 重新调度
-        if ((globalThis as any).__songloftScheduleNextBackup) {
-          (globalThis as any).__songloftScheduleNextBackup();
-        }
+        scheduleNextBackup();
       }
       return jsonResponse({ success: true });
     } catch (e) {
@@ -389,3 +379,8 @@ export function registerStatsHandlers(router: Router): void {
     }
   });
 }
+
+const router = createRouter();
+registerStatsHandlers(router);
+
+export default router;

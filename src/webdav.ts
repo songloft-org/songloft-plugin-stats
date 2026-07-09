@@ -1,16 +1,16 @@
 // WebDAV 备份客户端 - 用于上传/下载/浏览备份文件
 
-import type { BackupDavConfig } from './config'
+import type { BackupDavConfig } from './backup/config'
 
 function getBasicAuth(str: string): string {
   try {
-    return globalThis.btoa(str)
+    return (globalThis as any).btoa(str)
   } catch {
     return ''
   }
 }
 
-function getAuthHeader(config: BackupDavConfig): HeadersInit {
+function getAuthHeader(config: BackupDavConfig): Record<string, string> {
   if (config.username && config.password) {
     try {
       const basic = getBasicAuth(`${config.username}:${config.password}`)

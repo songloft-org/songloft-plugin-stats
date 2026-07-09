@@ -14,11 +14,8 @@
     "storage",
     "songs.read"
   ],
-  "publicPaths": [
-    "/api"
-  ],
-  "updateUrl": "https://raw.githubusercontent.com/songloft-org/songloft-plugin-stats/main/plugin.json",
-  "download_url": "https://github.com/songloft-org/songloft-plugin-stats/releases/download/v2026.7.7/stats.jsplugin.zip",
-  "entryHash": "326fb4b33757515be0a6837cdab431993c3743ca04ebb374884c31ab6174188c",
-  "zipHash": "68c305476f63970b65124f013d0a9898027bb13326af457ec6dad40b92c8f8f9"
+  "updateUrl": "https://raw.githubusercontent.com/songloft-org/songloft-plugin-stats/main/manifest.json",
+  "download_url": "https://github.com/songloft-org/plugins/releases/download/jsplugin-stats-2026.7.7/stats.jsplugin.zip",
+  "entryHash": "4c37f430dce2d3e8b1ce6892e34ad5b4f287e004cf8ec6d1b209f43a5adae64b",
+  "zipHash": "e690b6c12eb23808fb2129732c44542009cd57af18433dc08137558754a4cb3b"
 }

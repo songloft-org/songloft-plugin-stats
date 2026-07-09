@@ -1,6 +1,6 @@
 /**
  * 播放统计 — 前端入口
- * SongloftPlugin 由主程序自动注入
+ * SongloftPlugin 由主程序自动注入（提供 apiGet/apiPost 并自动附带 JWT）
  */
 const apiGet = (typeof SongloftPlugin !== 'undefined' && SongloftPlugin.apiGet)
   ? SongloftPlugin.apiGet
@@ -398,7 +398,7 @@ async function loadData(range, isInitial) {
 function switchTab(range) {
   if (currentRange === range) return;
   currentRange = range;
-  document.querySelectorAll('.tab').forEach((t) => {
+  document.querySelectorAll('#timeTabs .tab').forEach((t) => {
     t.classList.toggle('tab--active', t.dataset.range === range);
   });
   document.getElementById('historyList').removeAttribute('data-append');
@@ -654,24 +654,24 @@ document.getElementById('btnSavePushSchedule').addEventListener('click', async (
   pushSchedule.enabled = document.getElementById('pushScheduleEnabledCheck').checked;
   const hourInput = document.getElementById('pushHourInput').value.trim();
   const minuteInput = document.getElementById('pushMinuteInput').value.trim();
-  
+
   // 验证 hour
   const hour = parseInt(hourInput, 10);
   if (isNaN(hour) || hour < 0 || hour > 23 || String(hour) !== hourInput) {
     showToast('请输入有效的小时（0-23）', false);
     return;
   }
-  
+
   // 验证 minute
   const minute = parseInt(minuteInput, 10);
   if (isNaN(minute) || minute < 0 || minute > 59 || String(minute) !== minuteInput) {
     showToast('请输入有效的分钟（0-59）', false);
     return;
   }
-  
+
   pushSchedule.hour = hour;
   pushSchedule.minute = minute;
-  
+
   if (pushSchedule.enabled) {
     // 检查所有已启用平台是否都有 token
     const platforms = ['feishu', 'wxpusher'];
@@ -684,7 +684,7 @@ document.getElementById('btnSavePushSchedule').addEventListener('click', async (
       }
     }
   }
-  
+
   try {
     const resp = await apiPost('/api/push/config', { schedule: pushSchedule });
     if (resp.success) {
@@ -726,13 +726,17 @@ document.addEventListener('DOMContentLoaded', () => {
   showLoading();
   loadData('all', true);
 
-  // 主 Tab 切换（统计 / 设置）
+  // 顶部刷新按钮
+  const refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn) refreshBtn.addEventListener('click', () => refreshStatsTab());
+
+  // 主 Tab 切换（统计 / 设置）—— 新外壳使用 .tab-item / .active
   document.getElementById('mainTabs').addEventListener('click', (e) => {
-    const tab = e.target.closest('.tab');
+    const tab = e.target.closest('.tab-item');
     if (!tab) return;
     const tabName = tab.dataset.tab;
-    document.querySelectorAll('#mainTabs .tab').forEach((t) => {
-      t.classList.toggle('tab--active', t.dataset.tab === tabName);
+    document.querySelectorAll('#mainTabs .tab-item').forEach((t) => {
+      t.classList.toggle('active', t.dataset.tab === tabName);
     });
     document.querySelectorAll('.tab-content').forEach((c) => c.classList.remove('active'));
     document.getElementById('tab-' + tabName).classList.add('active');
@@ -848,6 +852,9 @@ document.addEventListener('DOMContentLoaded', () => {
       select.innerHTML = '<option value="">请选择服务器</option>' +
         backupServers.map(s => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
     });
+
+    // 恢复页默认停留在「请选择服务器」，由用户选择后自动加载文件列表
+    refreshBackupFiles();
 
     // 重新加载定时备份配置
     loadBackupSchedule();
@@ -996,22 +1003,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.getElementById('restoreServerSelect').addEventListener('change', () => {
-    const fileSelect = document.getElementById('backupFileSelect');
-    fileSelect.innerHTML = '<option value="">加载中…</option>';
-    fileSelect.disabled = true;
-  });
-
-  document.getElementById('btnRefreshBackupFiles').addEventListener('click', async () => {
+  async function refreshBackupFiles() {
     const configName = document.getElementById('restoreServerSelect').value;
+    const fileSelect = document.getElementById('backupFileSelect');
     if (!configName) {
-      showToast('请先选择服务器', false);
+      fileSelect.innerHTML = '<option value="">请先选择服务器</option>';
+      fileSelect.disabled = true;
       return;
     }
 
+    fileSelect.innerHTML = '<option value="">加载中…</option>';
+    fileSelect.disabled = true;
     try {
       const resp = await apiGet(`/api/backup/webdav/list?configName=${encodeURIComponent(configName)}`);
-      const fileSelect = document.getElementById('backupFileSelect');
       if (resp.success && resp.data.length) {
         fileSelect.innerHTML = resp.data.map(f =>
           `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)} (${formatFileSize(f.size)})</option>`
@@ -1024,7 +1028,9 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch (e) {
       showToast('获取文件列表失败: ' + String(e), false);
     }
-  });
+  }
+
+  document.getElementById('restoreServerSelect').addEventListener('change', refreshBackupFiles);
 
   document.getElementById('btnDownloadBackup').addEventListener('click', async () => {
     const configName = document.getElementById('restoreServerSelect').value;

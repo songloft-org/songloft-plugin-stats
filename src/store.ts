@@ -45,7 +45,7 @@ export async function setMaxHistory(limit: number): Promise<void> {
   }
 }
 
-// ── 歌曲元数据缓存（与 main.ts 共用，避免重复查询 songloft.songs.getById）─────
+// ── 歌曲元数据缓存（与 scheduler 共用，避免重复查询 songloft.songs.getById）─────
 const MAX_META_CACHE = 500;
 const metaCache = new Map<number, { album?: string; duration?: number }>();
 

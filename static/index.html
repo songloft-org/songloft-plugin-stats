@@ -2,28 +2,22 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/svg+xml" href="static/icon.svg">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>播放统计</title>
+  <link rel="icon" type="image/svg+xml" href="static/icon.svg">
   <link rel="stylesheet" href="static/css/style.css">
 </head>
 <body>
-  <div class="page">
-    <header class="header">
-      <h1 class="header__title">
-        <img class="header__icon" src="static/icon.svg" alt="" aria-hidden="true">
-        播放统计
-      </h1>
-      <p class="header__subtitle">记录你的听歌习惯</p>
-    </header>
+  <!-- AppBar -->
+  <header class="app-bar">
+    <h1>播放统计</h1>
+    <button class="btn-icon" id="refreshBtn" title="刷新">刷新</button>
+  </header>
 
-    <nav class="tabs" id="mainTabs">
-      <button class="tab tab--active" data-tab="stats">统计</button>
-      <button class="tab" data-tab="settings">设置</button>
-    </nav>
-
-    <!-- ── 统计面板 ──────────────────────────────────────────────────────────── -->
-    <div id="tab-stats" class="tab-content active">
+  <!-- 统计面板 -->
+  <div class="tab-content active" id="tab-stats">
+    <div class="container">
+      <!-- 时间范围 -->
       <nav class="tabs" id="timeTabs">
         <button class="tab tab--active" data-range="all">全部</button>
         <button class="tab" data-range="today">今日</button>
@@ -31,90 +25,106 @@
         <button class="tab" data-range="month">本月</button>
       </nav>
 
-      <section class="cards" id="summaryCards">
-        <div class="card">
-          <span class="card__label">播放次数</span>
-          <span class="card__value" id="totalPlays">—</span>
+      <!-- 概览卡片 -->
+      <section class="stat-grid" id="summaryCards">
+        <div class="stat-tile">
+          <span class="stat-tile__label">播放次数</span>
+          <span class="stat-tile__value" id="totalPlays">—</span>
         </div>
-        <div class="card">
-          <span class="card__label">听歌时长</span>
-          <span class="card__value" id="totalDuration">—</span>
+        <div class="stat-tile">
+          <span class="stat-tile__label">听歌时长</span>
+          <span class="stat-tile__value" id="totalDuration">—</span>
         </div>
-        <div class="card">
-          <span class="card__label">不同歌曲</span>
-          <span class="card__value" id="uniqueSongs">—</span>
+        <div class="stat-tile">
+          <span class="stat-tile__label">不同歌曲</span>
+          <span class="stat-tile__value" id="uniqueSongs">—</span>
         </div>
-        <div class="card">
-          <span class="card__label">不同艺术家</span>
-          <span class="card__value" id="uniqueArtists">—</span>
-        </div>
-      </section>
-
-      <div class="grid">
-        <section class="panel">
-          <h2 class="panel__title">艺术家排行</h2>
-          <ol class="rank-list" id="topArtists">
-            <li class="rank-list__empty">加载中…</li>
-          </ol>
-        </section>
-
-        <section class="panel">
-          <h2 class="panel__title">歌曲排行</h2>
-          <ol class="rank-list" id="topSongs">
-            <li class="rank-list__empty">加载中…</li>
-          </ol>
-        </section>
-      </div>
-
-      <section class="panel panel--spaced">
-        <h2 class="panel__title">听歌趋势</h2>
-        <div class="trends-controls">
-          <span class="trends-label">最近</span>
-          <button class="btn-range btn-range--active" data-trend-days="7">7天</button>
-          <button class="btn-range" data-trend-days="30">30天</button>
-        </div>
-        <div class="bar-chart" id="trendChart">
-          <div class="bar-chart__empty">加载中…</div>
+        <div class="stat-tile">
+          <span class="stat-tile__label">不同艺术家</span>
+          <span class="stat-tile__value" id="uniqueArtists">—</span>
         </div>
       </section>
 
-      <div class="grid">
-        <section class="panel">
-          <h2 class="panel__title">专辑排行</h2>
-          <ol class="rank-list" id="topAlbums">
-            <li class="rank-list__empty">加载中…</li>
-          </ol>
+      <div class="panel-grid">
+        <section class="card">
+          <div class="card-header">艺术家排行</div>
+          <div class="card-body">
+            <ol class="rank-list" id="topArtists">
+              <li class="rank-list__empty">加载中…</li>
+            </ol>
+          </div>
         </section>
 
-        <section class="panel">
-          <h2 class="panel__title">时段分布</h2>
-          <div class="hourly-dist" id="hourlyDist">
-            <div class="hourly-dist__empty">加载中…</div>
+        <section class="card">
+          <div class="card-header">歌曲排行</div>
+          <div class="card-body">
+            <ol class="rank-list" id="topSongs">
+              <li class="rank-list__empty">加载中…</li>
+            </ol>
           </div>
         </section>
       </div>
 
-      <section class="panel panel--spaced">
-        <h2 class="panel__title">来源分布</h2>
-        <ol class="rank-list" id="sourceList">
-          <li class="rank-list__empty">加载中…</li>
-        </ol>
+      <section class="card">
+        <div class="card-header">听歌趋势</div>
+        <div class="card-body">
+          <div class="trends-controls">
+            <span class="trends-label">最近</span>
+            <button class="btn-range btn-range--active" data-trend-days="7">7天</button>
+            <button class="btn-range" data-trend-days="30">30天</button>
+          </div>
+          <div class="bar-chart" id="trendChart">
+            <div class="bar-chart__empty">加载中…</div>
+          </div>
+        </div>
       </section>
 
-      <section class="panel panel--full">
-        <h2 class="panel__title">最近播放</h2>
-        <ul class="history-list" id="historyList">
-          <li class="history-list__empty">加载中…</li>
-        </ul>
-        <div class="history-footer" id="historyFooter" style="display:none">
-          <button class="btn-more" id="btnLoadMore">加载更多</button>
+      <div class="panel-grid">
+        <section class="card">
+          <div class="card-header">专辑排行</div>
+          <div class="card-body">
+            <ol class="rank-list" id="topAlbums">
+              <li class="rank-list__empty">加载中…</li>
+            </ol>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">时段分布</div>
+          <div class="card-body">
+            <div class="hourly-dist" id="hourlyDist">
+              <div class="hourly-dist__empty">加载中…</div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="card-header">来源分布</div>
+        <div class="card-body">
+          <ol class="rank-list" id="sourceList">
+            <li class="rank-list__empty">加载中…</li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">最近播放</div>
+        <div class="card-body">
+          <ul class="history-list" id="historyList">
+            <li class="history-list__empty">加载中…</li>
+          </ul>
+          <div class="history-footer" id="historyFooter" style="display:none">
+            <button class="btn-more" id="btnLoadMore">加载更多</button>
+          </div>
         </div>
       </section>
     </div>
+  </div>
 
-    <!-- ── 设置面板 ──────────────────────────────────────────────────────────── -->
-    <div id="tab-settings" class="tab-content">
-      <!-- 子 Tab: 推送 / 备份 / 历史 / 危险操作 -->
+  <!-- 设置面板 -->
+  <div class="tab-content" id="tab-settings">
+    <div class="container">
       <nav class="tabs" id="settingsSubTabs">
         <button class="tab tab--active" data-subtab="push">推送设置</button>
         <button class="tab" data-subtab="backup">备份设置</button>
@@ -122,202 +132,223 @@
         <button class="tab" data-subtab="danger">危险操作</button>
       </nav>
 
-      <!-- ── 推送设置 ──────────────────────────────────────────────────────── -->
+      <!-- 推送设置 -->
       <div id="subtab-push" class="subtab-content active">
-        <section class="panel">
-          <h2 class="panel__title">推送平台</h2>
-          <div class="push-form-group">
-            <label for="pushPlatformSelect">平台</label>
-            <select id="pushPlatformSelect" class="setting-select">
-              <option value="feishu">飞书群机器人</option>
-              <option value="wxpusher">WxPusher（极简推送SPT-推荐）</option>
-            </select>
-          </div>
-          <div class="push-form-group">
-            <label for="pushTokenInput" id="pushTokenLabel">larkKey</label>
-            <input type="text" id="pushTokenInput" class="setting-input" placeholder="请输入飞书机器人 webhook key">
-            <div id="pushHelpText" class="push-help-text"></div>
-          </div>
-          <div id="pushQrCode" class="push-qr-section" style="display:none;">
-            <img id="pushQrImg" src="" alt="WxPusher SPT 二维码" class="push-qr-img">
-          </div>
-          <div class="push-form-group">
-            <label class="push-toggle-label">
-              <input type="checkbox" id="pushEnabledCheck">
-              <span>启用推送</span>
-            </label>
-          </div>
-          <div class="setting-actions">
-            <button class="btn-filled" id="btnSavePushConfig">保存配置</button>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2 class="panel__title">推送时间</h2>
-          <div class="push-form-group">
-            <label class="push-toggle-label">
-              <input type="checkbox" id="pushScheduleEnabledCheck">
-              <span>启用定时推送</span>
-            </label>
-          </div>
-          <div class="push-form-group push-time-group">
-            <label for="pushHourInput">推送时间</label>
-            <div class="push-time-inputs">
-              <input type="number" id="pushHourInput" class="setting-input push-time-num" min="0" max="23" placeholder="时">
-              <span class="push-time-sep">:</span>
-              <input type="number" id="pushMinuteInput" class="setting-input push-time-num" min="0" max="59" placeholder="分">
+        <section class="card">
+          <div class="card-header">推送平台</div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label" for="pushPlatformSelect">平台</label>
+              <select id="pushPlatformSelect" class="select-field">
+                <option value="feishu">飞书群机器人</option>
+                <option value="wxpusher">WxPusher（极简推送SPT-推荐）</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="pushTokenInput" id="pushTokenLabel">larkKey</label>
+              <input type="text" id="pushTokenInput" class="text-field" placeholder="请输入飞书机器人 webhook key">
+              <div id="pushHelpText" class="form-desc"></div>
+            </div>
+            <div id="pushQrCode" class="push-qr-section" style="display:none;">
+              <img id="pushQrImg" src="" alt="WxPusher SPT 二维码" class="push-qr-img">
+            </div>
+            <div class="form-group">
+              <label class="md-checkbox">
+                <input type="checkbox" id="pushEnabledCheck">
+                <span>启用推送</span>
+              </label>
+            </div>
+            <div class="toolbar-end">
+              <button class="btn-filled" id="btnSavePushConfig">保存配置</button>
             </div>
           </div>
-          <div class="setting-actions">
-            <button class="btn-filled" id="btnSavePushSchedule">保存时间</button>
+        </section>
+
+        <section class="card">
+          <div class="card-header">推送时间</div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="md-checkbox">
+                <input type="checkbox" id="pushScheduleEnabledCheck">
+                <span>启用定时推送</span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="pushHourInput">推送时间</label>
+              <div class="push-time-inputs">
+                <input type="number" id="pushHourInput" class="text-field push-time-num" min="0" max="23" placeholder="时">
+                <span class="push-time-sep">:</span>
+                <input type="number" id="pushMinuteInput" class="text-field push-time-num" min="0" max="59" placeholder="分">
+              </div>
+            </div>
+            <div class="toolbar-end">
+              <button class="btn-filled" id="btnSavePushSchedule">保存时间</button>
+            </div>
           </div>
         </section>
 
-        <section class="panel">
-          <h2 class="panel__title">测试推送</h2>
-          <p class="setting-desc">点击按钮立即发送一条测试推送，验证配置是否正确。</p>
-          <div class="setting-actions">
-            <button class="btn-outlined" id="btnTestPush">发送测试推送</button>
+        <section class="card">
+          <div class="card-header">测试推送</div>
+          <div class="card-body">
+            <p class="form-desc">点击按钮立即发送一条测试推送，验证配置是否正确。</p>
+            <div class="toolbar-end">
+              <button class="btn-outlined" id="btnTestPush">发送测试推送</button>
+            </div>
           </div>
         </section>
       </div>
 
-      <!-- ── 备份设置 ──────────────────────────────────────────────────────── -->
+      <!-- 备份设置 -->
       <div id="subtab-backup" class="subtab-content">
-        <section class="panel">
-          <h2 class="panel__title">添加 WebDAV 服务器</h2>
-          <div class="push-form-group">
-            <label for="backupDavName">配置名称</label>
-            <input type="text" id="backupDavName" class="setting-input" placeholder="例如：NAS">
-          </div>
-          <div class="push-form-group">
-            <label for="backupDavUrl">服务器地址</label>
-            <input type="text" id="backupDavUrl" class="setting-input" placeholder="例如：https://nas.example.com/webdav">
-          </div>
-          <div class="push-form-group">
-            <label for="backupDavUsername">用户名</label>
-            <input type="text" id="backupDavUsername" class="setting-input" placeholder="WebDAV 用户名">
-          </div>
-          <div class="push-form-group">
-            <label for="backupDavPassword">密码</label>
-            <input type="password" id="backupDavPassword" class="setting-input" placeholder="WebDAV 密码">
-          </div>
-          <div class="setting-actions setting-actions--row">
-            <button class="btn-outlined" id="btnTestBackup">测试连接</button>
-            <button class="btn-filled" id="btnSaveBackupConfig">保存配置</button>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2 class="panel__title">已配置的服务器</h2>
-          <div id="backupServerList">
-            <p class="setting-desc">暂无配置</p>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2 class="panel__title">备份数据</h2>
-          <p class="setting-desc">将播放统计数据上传到已配置的 WebDAV 服务器。</p>
-          <div class="push-form-group">
-            <label for="backupServerSelect">选择服务器</label>
-            <select id="backupServerSelect" class="setting-select">
-              <option value="">请先添加配置</option>
-            </select>
-          </div>
-          <div class="setting-actions">
-            <button class="btn-filled" id="btnUploadBackup">上传备份</button>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2 class="panel__title">恢复数据</h2>
-          <p class="setting-desc">从 WebDAV 服务器下载备份文件并导入数据。</p>
-          <div class="push-form-group">
-            <label for="restoreServerSelect">选择服务器</label>
-            <select id="restoreServerSelect" class="setting-select">
-              <option value="">请先添加配置</option>
-            </select>
-          </div>
-          <div class="push-form-group">
-            <label for="backupFileSelect">选择备份文件</label>
-            <select id="backupFileSelect" class="setting-select" disabled>
-              <option value="">请先选择服务器</option>
-            </select>
-          </div>
-          <div class="setting-actions">
-            <button class="btn-outlined" id="btnRefreshBackupFiles">刷新文件列表</button>
-            <button class="btn-filled" id="btnDownloadBackup">恢复数据</button>
-          </div>
-        </section>
-
-        <section class="panel">
-          <h2 class="panel__title">定时备份</h2>
-          <p class="setting-desc">设置定时自动备份，备份成功或失败都会推送到指定平台。</p>
-          <div class="push-form-group">
-            <label>
-              <input type="checkbox" id="backupScheduleEnabled" class="setting-checkbox">
-              启用定时备份
-            </label>
-          </div>
-          <div class="push-form-group">
-            <label for="backupScheduleHour">备份时间</label>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <select id="backupScheduleHour" class="setting-select" style="flex:1;"></select>
-              <span>时</span>
-              <select id="backupScheduleMinute" class="setting-select" style="flex:1;"></select>
-              <span>分</span>
+        <section class="card">
+          <div class="card-header">添加 WebDAV 服务器</div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label" for="backupDavName">配置名称</label>
+              <input type="text" id="backupDavName" class="text-field" placeholder="例如：NAS">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="backupDavUrl">服务器地址</label>
+              <input type="text" id="backupDavUrl" class="text-field" placeholder="例如：https://nas.example.com/webdav">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="backupDavUsername">用户名</label>
+              <input type="text" id="backupDavUsername" class="text-field" placeholder="WebDAV 用户名">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="backupDavPassword">密码</label>
+              <input type="password" id="backupDavPassword" class="text-field" placeholder="WebDAV 密码">
+            </div>
+            <div class="toolbar-end">
+              <button class="btn-outlined" id="btnTestBackup">测试连接</button>
+              <button class="btn-filled" id="btnSaveBackupConfig">保存配置</button>
             </div>
           </div>
-          <div class="push-form-group">
-            <label for="backupScheduleServerSelect">选择服务器</label>
-            <select id="backupScheduleServerSelect" class="setting-select">
-              <option value="">请先添加配置</option>
-            </select>
+        </section>
+
+        <section class="card">
+          <div class="card-header">已配置的服务器</div>
+          <div class="card-body">
+            <div id="backupServerList">
+              <p class="form-desc">暂无配置</p>
+            </div>
           </div>
-          <div class="setting-actions">
-            <button class="btn-filled" id="btnSaveBackupSchedule">保存定时设置</button>
+        </section>
+
+        <section class="card">
+          <div class="card-header">备份数据</div>
+          <div class="card-body">
+            <p class="form-desc">将播放统计数据上传到已配置的 WebDAV 服务器。</p>
+            <div class="form-group">
+              <label class="form-label" for="backupServerSelect">选择服务器</label>
+              <select id="backupServerSelect" class="select-field">
+                <option value="">请先添加配置</option>
+              </select>
+            </div>
+            <div class="toolbar-end">
+              <button class="btn-filled" id="btnUploadBackup">上传备份</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">恢复数据</div>
+          <div class="card-body">
+            <p class="form-desc">从 WebDAV 服务器下载备份文件并导入数据。</p>
+            <div class="form-group">
+              <label class="form-label" for="restoreServerSelect">选择服务器</label>
+              <select id="restoreServerSelect" class="select-field">
+                <option value="">请先添加配置</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="backupFileSelect">选择备份文件</label>
+              <select id="backupFileSelect" class="select-field" disabled>
+                <option value="">请先选择服务器</option>
+              </select>
+            </div>
+            <div class="toolbar-end">
+              <button class="btn-filled" id="btnDownloadBackup">恢复数据</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">定时备份</div>
+          <div class="card-body">
+            <p class="form-desc">设置定时自动备份，备份成功或失败都会推送到指定平台。</p>
+            <div class="form-group">
+              <label class="md-checkbox">
+                <input type="checkbox" id="backupScheduleEnabled" class="setting-checkbox">
+                <span>启用定时备份</span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="backupScheduleHour">备份时间</label>
+              <div class="push-time-inputs">
+                <select id="backupScheduleHour" class="select-field" style="flex:1;"></select>
+                <span>时</span>
+                <select id="backupScheduleMinute" class="select-field" style="flex:1;"></select>
+                <span>分</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="backupScheduleServerSelect">选择服务器</label>
+              <select id="backupScheduleServerSelect" class="select-field">
+                <option value="">请先添加配置</option>
+              </select>
+            </div>
+            <div class="toolbar-end">
+              <button class="btn-filled" id="btnSaveBackupSchedule">保存定时设置</button>
+            </div>
           </div>
         </section>
       </div>
 
-      <!-- ── 历史记录 ──────────────────────────────────────────────────────── -->
+      <!-- 历史记录 -->
       <div id="subtab-history" class="subtab-content">
-        <section class="panel">
-          <h2 class="panel__title">历史记录保留</h2>
-          <p class="setting-desc">
-            当前记录数：<strong id="recordCount">—</strong>
-            &nbsp;·&nbsp;
-            上限：
-            <select id="maxHistorySelect" class="setting-select">
-              <option value="5000">5,000</option>
-              <option value="10000">10,000</option>
-              <option value="20000" selected>20,000（默认）</option>
-              <option value="50000">50,000</option>
-              <option value="100000">100,000</option>
-            </select>
-          </p>
-          <div class="setting-actions">
-            <button class="btn-filled" id="btnSaveLimit">保存上限</button>
+        <section class="card">
+          <div class="card-header">历史记录保留</div>
+          <div class="card-body">
+            <p class="form-desc">
+              当前记录数：<strong id="recordCount">—</strong>
+              &nbsp;·&nbsp;
+              上限：
+              <select id="maxHistorySelect" class="select-field" style="display:inline-block;width:auto;">
+                <option value="5000">5,000</option>
+                <option value="10000">10,000</option>
+                <option value="20000" selected>20,000（默认）</option>
+                <option value="50000">50,000</option>
+                <option value="100000">100,000</option>
+              </select>
+            </p>
+            <div class="toolbar-end">
+              <button class="btn-filled" id="btnSaveLimit">保存上限</button>
+            </div>
           </div>
         </section>
 
-        <section class="panel">
-          <h2 class="panel__title">数据管理</h2>
-          <div class="setting-actions setting-actions--row">
-            <button class="btn-filled" id="btnExport">导出数据</button>
-            <button class="btn-outlined" id="btnImport">导入数据</button>
-            <input type="file" id="importFile" accept=".json" style="display:none">
+        <section class="card">
+          <div class="card-header">数据管理</div>
+          <div class="card-body">
+            <div class="toolbar-end">
+              <button class="btn-filled" id="btnExport">导出数据</button>
+              <button class="btn-outlined" id="btnImport">导入数据</button>
+              <input type="file" id="importFile" accept=".json" style="display:none">
+            </div>
           </div>
         </section>
       </div>
 
-      <!-- ── 危险操作 ──────────────────────────────────────────────────────── -->
+      <!-- 危险操作 -->
       <div id="subtab-danger" class="subtab-content">
-        <section class="panel panel--danger">
-          <h2 class="panel__title">危险操作</h2>
-          <p class="setting-desc">清空所有播放统计数据，此操作不可撤销。</p>
-          <div class="setting-actions">
-            <button class="btn-filled danger" id="btnReset">重置统计数据</button>
+        <section class="card card--danger">
+          <div class="card-header">危险操作</div>
+          <div class="card-body">
+            <p class="form-desc">清空所有播放统计数据，此操作不可撤销。</p>
+            <div class="toolbar-end">
+              <button class="btn-filled danger" id="btnReset">重置统计数据</button>
+            </div>
           </div>
         </section>
       </div>
@@ -325,6 +356,16 @@
       <div class="toast" id="toast"></div>
     </div>
   </div>
+
+  <!-- Tab Bar -->
+  <nav class="tab-bar" id="mainTabs">
+    <button class="tab-item active" data-tab="stats">
+      <span>统计</span>
+    </button>
+    <button class="tab-item" data-tab="settings">
+      <span>设置</span>
+    </button>
+  </nav>
 
   <!-- Dialog -->
   <div id="dialogOverlay" class="dialog-overlay" role="dialog" aria-modal="true">

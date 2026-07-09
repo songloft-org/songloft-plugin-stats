@@ -21,7 +21,7 @@ export async function getBackupDavConfigs(): Promise<BackupDavConfig[]> {
   try {
     const val = await songloft.storage.get(CONFIG_KEY)
     if (val) {
-      return JSON.parse(val) as BackupDavConfig[]
+      return JSON.parse(val as string) as BackupDavConfig[]
     }
   } catch (err) {
     songloft.log.error('[备份] 获取 WebDAV 配置失败: ' + String(err))
