@@ -8,12 +8,13 @@ import { loadPushConfig, savePushConfig, loadPushSchedule, savePushSchedule } fr
 import { getBackupDavConfigs, saveBackupDavConfigs, getBackupDavConfig, loadBackupSchedule, saveBackupSchedule, BackupDavConfig } from './backup/config';
 import { testConnection, listDirectory, uploadBackup, downloadBackup } from './webdav';
 import { doPush, scheduleNextPush, scheduleNextBackup } from './scheduler';
+import type { PushResult } from './scheduler';
 
 const MAX_LIMIT = 100;
 
-/** 手动触发推送 */
-async function triggerPush(platform: string, isManual: boolean): Promise<void> {
-  await doPush(platform, isManual);
+/** 手动触发推送（测试推送）*/
+async function triggerPush(platform: string, isTest: boolean): Promise<PushResult> {
+  return await doPush(platform, isTest, isTest);
 }
 
 /** 解析请求体（兼容 Uint8Array 和 string） */
@@ -221,8 +222,11 @@ function registerStatsHandlers(router: Router): void {
     try {
       const input = parseBody(req);
       const platform = input.platform || 'feishu';
-      await triggerPush(platform, true);
-      return jsonResponse({ success: true, message: '推送测试已发送' });
+      const result = await triggerPush(platform, true);
+      if (result.ok) {
+        return jsonResponse({ success: true, message: '推送测试已发送' });
+      }
+      return jsonResponse({ success: false, error: result.reason || '推送失败' });
     } catch (e) {
       return jsonResponse({ success: false, error: String(e) });
     }

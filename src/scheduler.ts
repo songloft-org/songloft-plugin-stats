@@ -7,7 +7,7 @@ import { loadPushConfig, loadPushSchedule, savePushSchedule } from './push/confi
 import type { PushConfig, PushSchedule } from './push/config';
 import { getBackupDavConfig, loadBackupSchedule, saveBackupSchedule, BackupSchedule } from './backup/config';
 import { uploadBackup } from './webdav';
-import { PLATFORM_PUSHERS, buildPushContent, buildBackupPushContent } from './pusher';
+import { PLATFORM_PUSHERS, buildPushContent, buildTestPushContent, buildBackupPushContent } from './pusher';
 
 // ── 去重机制：同一首歌至少间隔 duration 50%（最低 10s）才记录 ─────────────────
 const MIN_DEDUP_MS = 10_000;
@@ -59,46 +59,67 @@ async function isDuplicate(songId: number, timestamp: number): Promise<boolean> 
 
 let pushTimerId: number | null = null;
 
-async function doPush(platform: string, isManual?: boolean): Promise<void> {
+export interface PushResult {
+  ok: boolean;
+  reason?: string;
+}
+
+async function doPush(platform: string, isManual?: boolean, isTest?: boolean): Promise<PushResult> {
   const config = await loadPushConfig();
   const pc = config[platform as keyof typeof config];
   if (!pc?.enabled || !pc.token) {
-    if (isManual) songloft.log.info(`[推送] ${platform}: 未启用或 token 为空，跳过`);
-    return;
+    const reason = `${platform}: 未启用或 token 为空`;
+    songloft.log.info(`[推送] ${reason}，跳过`);
+    return { ok: false, reason };
   }
 
   try {
-    // 计算昨日时间范围：昨日 0:00:00 ~ 今日 0:00:00
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
-    const timeRange: TimeRange = {
-      from: yesterdayStart.getTime(),
-      to: todayStart.getTime()
-    };
+    let title: string;
+    let body: string;
 
-    const history = await loadHistory();
-    const summary = computeSummary(history, timeRange);
+    if (isTest) {
+      // 测试推送：仅验证 webhook 连通性，不依赖播放记录
+      const c = buildTestPushContent();
+      title = c.title;
+      body = c.content;
+    } else {
+      // 计算昨日时间范围：昨日 0:00:00 ~ 今日 0:00:00
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+      const timeRange: TimeRange = {
+        from: yesterdayStart.getTime(),
+        to: todayStart.getTime()
+      };
 
-    // 如果昨日没有数据，就跳过推送
-    if (summary.totalPlays === 0) {
-      songloft.log.info(`[推送] 昨日无播放记录，跳过 ${platform} 推送`);
-      return;
+      const history = await loadHistory();
+      const summary = computeSummary(history, timeRange);
+
+      // 如果昨日没有数据，就跳过推送
+      if (summary.totalPlays === 0) {
+        songloft.log.info(`[推送] 昨日无播放记录，跳过 ${platform} 推送`);
+        return { ok: false, reason: '昨日无播放记录' };
+      }
+
+      const c = buildPushContent(summary);
+      title = c.title;
+      body = c.content;
     }
 
-    const { title, content } = buildPushContent(summary);
     const pusher = PLATFORM_PUSHERS[platform];
     if (!pusher) {
       songloft.log.error(`[推送] 不支持的平台: ${platform}`);
-      return;
+      return { ok: false, reason: '不支持的平台' };
     }
-    await pusher(pc.token, title, content);
+    await pusher(pc.token, title, body);
     songloft.log.info(`[推送] 成功 (${platform}): ${title}`);
     if (isManual) {
       songloft.log.info(`[推送] ${platform} 测试推送成功`);
     }
+    return { ok: true };
   } catch (e) {
     songloft.log.error(`[推送] ${platform} 失败: ${String(e)}`);
+    return { ok: false, reason: String(e) };
   }
 }
 

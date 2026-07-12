@@ -84,6 +84,14 @@ export const PLATFORM_PUSHERS: Record<string, (token: string, title: string, con
 
 export { formatDuration, buildPushContent };
 
+/** 测试推送内容：仅用于验证 webhook 连通性，不含统计 */
+export function buildTestPushContent(): { title: string; content: string } {
+  return {
+    title: '📊 播放统计 · 测试推送',
+    content: '这是一条测试消息，说明你的推送配置已生效 ✅',
+  };
+}
+
 export function buildBackupPushContent(success: boolean, fileName?: string, recordCount?: number, error?: string): { title: string; content: string } {
   const lines: string[] = [];
 
