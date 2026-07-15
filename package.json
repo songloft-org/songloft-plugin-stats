@@ -1,6 +1,6 @@
 {
   "name": "stats",
-  "version": "2026.7.9",
+  "version": "2026.7.15",
   "description": "记录播放历史，统计听歌次数与艺术家排行，支持定时推送听歌报告、WebDAV 备份和定时自动备份",
   "private": true,
   "scripts": {
