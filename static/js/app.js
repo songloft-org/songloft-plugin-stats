@@ -148,6 +148,17 @@ function sourceLabel(src) {
   return SOURCE_LABELS[src] || src || '未知';
 }
 
+const MEDIA_TYPE_LABELS = {
+  local: '本地',
+  remote: '网络',
+  radio: '电台',
+  unknown: '未知',
+};
+
+function mediaLabel(type) {
+  return MEDIA_TYPE_LABELS[type] || '未知';
+}
+
 function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str || '';
@@ -290,6 +301,7 @@ function renderSummary(data) {
     (a) => escapeHtml(a.album), (a) => `${a.plays} 次`);
 
   renderBySource(data.bySource);
+  renderMediaType(data.byMediaType);
 }
 
 function renderBySource(bySource) {
@@ -309,6 +321,30 @@ function renderBySource(bySource) {
     .join('');
 }
 
+function renderMediaType(byMediaType) {
+  const el = document.getElementById('mediaTypeList');
+  if (!el) return;
+  const raw = byMediaType || {};
+  // 分别展示：本地 = local；网络 = remote；电台 = radio；未知单独计
+  const merged = {};
+  if (raw['local']) merged['本地'] = raw['local'];
+  if (raw['remote']) merged['网络'] = raw['remote'];
+  if (raw['radio']) merged['电台'] = raw['radio'];
+  if (raw['unknown']) merged['未知'] = raw['unknown'];
+  const entries = Object.entries(merged).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) {
+    el.innerHTML = '<li class="rank-list__empty">暂无数据</li>';
+    return;
+  }
+  el.innerHTML = entries
+    .map(
+      ([label, count]) =>
+        `<li><span class="rank-list__name">${escapeHtml(label)}</span>` +
+        `<span class="rank-list__count">${count} 次</span></li>`,
+    )
+    .join('');
+}
+
 function renderHistory(records, append) {
   const el = document.getElementById('historyList');
   if (!append) {
@@ -323,7 +359,7 @@ function renderHistory(records, append) {
       (r) =>
         `<li>` +
         `<span class="history-list__song">${escapeHtml(r.artist)} — ${escapeHtml(r.title)}</span>` +
-        `<span class="history-list__meta">${formatTime(r.timestamp)} · ${sourceLabel(r.source)}</span>` +
+        `<span class="history-list__meta">${formatTime(r.timestamp)} · ${mediaLabel(r.type)} · ${sourceLabel(r.source)}</span>` +
         `</li>`,
     )
     .join('');

@@ -28,6 +28,12 @@ function buildPushContent(summary: StatsSummary): { title: string; content: stri
   if (topSongs.length > 0) {
     lines.push('🎸 最爱歌曲: ' + topSongs.map((s) => `${s.title} - ${s.artist}`).join(', '));
   }
+  if (summary.byMediaType) {
+    const local = summary.byMediaType['local'] || 0;
+    const remote = summary.byMediaType['remote'] || 0;
+    const radio = summary.byMediaType['radio'] || 0;
+    lines.push(`📁 媒体类型: 本地 ${local} 次 / 网络 ${remote} 次 / 电台 ${radio} 次`);
+  }
   return {
     title: '📊 昨日听歌报告',
     content: lines.join('\n'),

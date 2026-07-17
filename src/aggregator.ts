@@ -22,6 +22,7 @@ export function computeSummary(records: PlayRecord[], range?: TimeRange): StatsS
   const songMap = new Map<number, { title: string; artist: string; plays: number }>();
   const albumMap = new Map<string, number>();
   const bySource: Record<string, number> = {};
+  const byMediaType: Record<string, number> = {};
   const uniqueSongs = new Set<number>();
   const uniqueArtists = new Set<string>();
   let totalDurationSec = 0;
@@ -51,6 +52,8 @@ export function computeSummary(records: PlayRecord[], range?: TimeRange): StatsS
 
     const src = r.source || 'unknown';
     bySource[src] = (bySource[src] || 0) + 1;
+    const mt = r.type || 'unknown';
+    byMediaType[mt] = (byMediaType[mt] || 0) + 1;
   }
 
   const topArtists = [...artistMap.entries()]
@@ -77,6 +80,7 @@ export function computeSummary(records: PlayRecord[], range?: TimeRange): StatsS
     topSongs,
     topAlbums,
     bySource,
+    byMediaType,
   };
 }
 

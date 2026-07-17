@@ -1,3 +1,5 @@
+export type MediaType = 'local' | 'remote' | 'radio';
+
 export interface PlayRecord {
   songId: number;
   title: string;
@@ -5,6 +7,8 @@ export interface PlayRecord {
   album?: string;
   duration?: number;
   source: string;
+  /** 媒体类型：local=本地, remote=网络, radio=电台（来自 Song.type） */
+  type?: MediaType;
   timestamp: number;
 }
 
@@ -17,6 +21,8 @@ export interface StatsSummary {
   topSongs: { songId: number; title: string; artist: string; plays: number }[];
   topAlbums: { album: string; plays: number }[];
   bySource: Record<string, number>;
+  /** 媒体类型分布：local / remote / radio / unknown */
+  byMediaType?: Record<string, number>;
 }
 
 export interface TimeRange {

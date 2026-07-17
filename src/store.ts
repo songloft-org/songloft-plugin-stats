@@ -1,5 +1,5 @@
 import type { PlayEvent } from '@songloft/plugin-sdk';
-import type { PlayRecord, StatsSummary } from './types';
+import type { PlayRecord, StatsSummary, MediaType } from './types';
 
 const HISTORY_KEY = 'play_history';
 const SETTINGS_KEY = 'settings';
@@ -47,14 +47,14 @@ export async function setMaxHistory(limit: number): Promise<void> {
 
 // ── 歌曲元数据缓存（与 scheduler 共用，避免重复查询 songloft.songs.getById）─────
 const MAX_META_CACHE = 500;
-const metaCache = new Map<number, { album?: string; duration?: number }>();
+const metaCache = new Map<number, { album?: string; duration?: number; type?: MediaType }>();
 
-/** 获取歌曲元数据（带缓存） */
-export async function getSongMeta(songId: number): Promise<{ album?: string; duration?: number }> {
+/** 获取歌曲元数据（带缓存），含媒体类型 type（来自 Song.type） */
+export async function getSongMeta(songId: number): Promise<{ album?: string; duration?: number; type?: MediaType }> {
   if (metaCache.has(songId)) return metaCache.get(songId)!;
   try {
     const song = await songloft.songs.getById(songId);
-    const meta = { album: song?.album, duration: song?.duration };
+    const meta = { album: song?.album, duration: song?.duration, type: song?.type };
     metaCache.set(songId, meta);
     if (metaCache.size > MAX_META_CACHE) {
       const firstKey = metaCache.keys().next().value;
@@ -76,6 +76,7 @@ const incArtistMap = new Map<string, number>();
 const incSongMap = new Map<number, { title: string; artist: string; plays: number }>();
 const incAlbumMap = new Map<string, number>();
 const incBySource: Record<string, number> = {};
+const incByMediaType: Record<string, number> = {};
 const incUniqueSongs = new Set<number>();
 const incUniqueArtists = new Set<string>();
 let incTotalDurationSec = 0;
@@ -88,6 +89,7 @@ function rebuildIncState(records: PlayRecord[]): void {
   incSongMap.clear();
   incAlbumMap.clear();
   const newBySource: Record<string, number> = {};
+  const newByMediaType: Record<string, number> = {};
   incUniqueSongs.clear();
   incUniqueArtists.clear();
   incTotalDurationSec = 0;
@@ -111,10 +113,14 @@ function rebuildIncState(records: PlayRecord[]): void {
     }
     const src = r.source || 'unknown';
     newBySource[src] = (newBySource[src] || 0) + 1;
+    const mt = r.type || 'unknown';
+    newByMediaType[mt] = (newByMediaType[mt] || 0) + 1;
   }
-  // 替换 incBySource 对象引用
+  // 替换 incBySource / incByMediaType 对象引用
   for (const key of Object.keys(incBySource)) delete incBySource[key];
   Object.assign(incBySource, newBySource);
+  for (const key of Object.keys(incByMediaType)) delete incByMediaType[key];
+  Object.assign(incByMediaType, newByMediaType);
   incInitialized = true;
 }
 
@@ -144,6 +150,7 @@ function buildIncSummary(): StatsSummary {
     topSongs,
     topAlbums,
     bySource: incBySource,
+    byMediaType: incByMediaType,
   };
 }
 
@@ -204,11 +211,9 @@ async function flushSave(records: PlayRecord[]): Promise<void> {
   const trimmed = records.length > limit ? records.slice(-limit) : records;
   await songloft.storage.set(HISTORY_KEY, trimmed);
   cache = trimmed;
-  // 增量更新去重索引，而非下次查询时全量重建
+  // 裁剪后重建去重索引（覆盖整个 trimmed，含刚写入的记录）
   if (dedupIndex) {
-    // 裁剪后保留的索引项需重新映射位置
-    const newIdx = buildDedupIndex(trimmed);
-    dedupIndex = newIdx;
+    dedupIndex = buildDedupIndex(trimmed);
   }
 }
 
@@ -239,6 +244,8 @@ function incAppendRecord(record: PlayRecord): void {
   }
   const src = record.source || 'unknown';
   incBySource[src] = (incBySource[src] || 0) + 1;
+  const mt = record.type || 'unknown';
+  incByMediaType[mt] = (incByMediaType[mt] || 0) + 1;
 }
 
 async function doAppend(event: PlayEvent): Promise<PlayRecord> {
@@ -254,12 +261,17 @@ async function doAppend(event: PlayEvent): Promise<PlayRecord> {
   if (meta) {
     record.album = meta.album;
     record.duration = meta.duration;
+    record.type = meta.type;
   }
 
   const history = await loadHistory();
   history.push(record);
   incAppendRecord(record); // 增量更新聚合状态
   await flushSave(history);
+  // 增量维护去重索引，保证 /api/history 去重视图包含本次新播放的歌
+  if (dedupIndex && cache) {
+    dedupIndex.set(record.songId, cache.length - 1);
+  }
   return record;
 }
 
@@ -311,6 +323,8 @@ export async function importRecords(newRecords: PlayRecord[]): Promise<number> {
     if (incInitialized) {
       rebuildIncState(cache!);
     }
+    // 导入后去重索引失效，下次查询时重建
+    dedupIndex = null;
   }
 
   return added;
@@ -332,6 +346,7 @@ export async function resetHistory(): Promise<void> {
   incSongMap.clear();
   incAlbumMap.clear();
   for (const key of Object.keys(incBySource)) delete incBySource[key];
+  for (const key of Object.keys(incByMediaType)) delete incByMediaType[key];
   incUniqueSongs.clear();
   incUniqueArtists.clear();
   incTotalDurationSec = 0;
