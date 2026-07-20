@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/songloft-org/plugin-toolchain/main/schemas/plugin.schema.json",
   "name": "播放统计",
-  "version": "2026.7.15",
+  "version": "2026.7.20",
   "description": "记录播放历史，统计听歌次数与艺术家排行，支持定时推送听歌报告、WebDAV 备份和定时自动备份",
   "author": "Songloft Team",
   "homepage": "https://github.com/songloft-org/songloft-plugin-stats",
@@ -15,7 +15,7 @@
     "songs.read"
   ],
   "updateUrl": "https://raw.githubusercontent.com/songloft-org/songloft-plugin-stats/main/plugin.json",
-  "download_url": "https://github.com/songloft-org/songloft-plugin-stats/releases/download/v2026.7.15/stats.jsplugin.zip",
+  "download_url": "https://github.com/songloft-org/songloft-plugin-stats/releases/download/v2026.7.20/stats.jsplugin.zip",
   "entryHash": "",
   "zipHash": ""
 }
