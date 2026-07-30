@@ -3,6 +3,7 @@ import type { PlayRecord, StatsSummary, MediaType } from './types';
 
 const HISTORY_KEY = 'play_history';
 const SETTINGS_KEY = 'settings';
+const SKIP_KEY = 'skip_counts';
 const DEFAULT_MAX_HISTORY = 20000;
 
 // ── 设置 ──────────────────────────────────────────────────────────────────────
@@ -198,6 +199,52 @@ export function getDedupIndex(): Map<number, number> {
   return dedupIndex || new Map();
 }
 
+// ── 切歌计数（songId → 累计 skip 次数，供智能推荐使用）─────────────────────────
+let skipCache: Map<number, number> | null = null;
+
+async function readSkipRaw(): Promise<Record<string, number>> {
+  try {
+    const raw = await songloft.storage.get(SKIP_KEY);
+    if (raw == null) return {};
+    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return data && typeof data === 'object' ? (data as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** 加载切歌计数（songId → 次数）*/
+export async function loadSkipCounts(): Promise<Map<number, number>> {
+  if (skipCache) return skipCache;
+  const raw = await readSkipRaw();
+  skipCache = new Map();
+  for (const [k, v] of Object.entries(raw)) {
+    const id = parseInt(k, 10);
+    if (!isNaN(id) && typeof v === 'number' && v > 0) skipCache.set(id, v);
+  }
+  return skipCache;
+}
+
+async function flushSkipSave(): Promise<void> {
+  if (!skipCache) return;
+  const obj: Record<string, number> = {};
+  for (const [id, count] of skipCache) obj[String(id)] = count;
+  await songloft.storage.set(SKIP_KEY, obj);
+}
+
+/** 记录一次切歌（经写入队列串行化，避免与播放记录写入竞态）*/
+export function recordSkip(songId: number): Promise<void> {
+  const p = writeQueue.then(async () => {
+    const counts = await loadSkipCounts();
+    counts.set(songId, (counts.get(songId) || 0) + 1);
+    await flushSkipSave();
+  });
+  writeQueue = p.catch((e) => {
+    songloft.log.error('[store] recordSkip 失败: ' + String(e));
+  });
+  return p;
+}
+
 // ── 写入队列（防止并发竞态）─────────────────────────────────────────────────────
 let writeQueue: Promise<void> = Promise.resolve();
 
@@ -336,11 +383,13 @@ export async function getRecordCount(): Promise<number> {
   return h.length;
 }
 
-/** 清空所有播放历史 */
+/** 清空所有播放历史（含切歌计数）*/
 export async function resetHistory(): Promise<void> {
   await songloft.storage.delete(HISTORY_KEY);
+  await songloft.storage.delete(SKIP_KEY);
   cache = [];
   dedupIndex = null;
+  skipCache = new Map();
   // 重置增量聚合状态
   incArtistMap.clear();
   incSongMap.clear();

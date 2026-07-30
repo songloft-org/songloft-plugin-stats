@@ -1,6 +1,6 @@
 /// <reference types="@songloft/plugin-sdk" />
 import type { PlayEvent } from '@songloft/plugin-sdk';
-import { loadHistory, getRecordCount, exportHistory, appendRecord } from './store';
+import { loadHistory, getRecordCount, exportHistory, appendRecord, recordSkip } from './store';
 import { computeSummary } from './aggregator';
 import type { TimeRange } from './types';
 import { loadPushConfig, loadPushSchedule, savePushSchedule } from './push/config';
@@ -8,6 +8,12 @@ import type { PushConfig, PushSchedule } from './push/config';
 import { getBackupDavConfig, loadBackupSchedule, saveBackupSchedule, BackupSchedule } from './backup/config';
 import { uploadBackup } from './webdav';
 import { PLATFORM_PUSHERS, buildPushContent, buildTestPushContent, buildBackupPushContent } from './pusher';
+import { materializePlaylist, ALL_MODES } from './recommend/playlists';
+import type { RecommendMode } from './recommend/playlists';
+import { loadRules, materializeRule } from './recommend/rules';
+import { generateAiReport, pushAiReport, loadAiReportSchedule } from './ai/report';
+import type { AiReportSchedule } from './ai/report';
+import { isAiConfigured } from './ai/client';
 
 // ── 去重机制：同一首歌至少间隔 duration 50%（最低 10s）才记录 ─────────────────
 const MIN_DEDUP_MS = 10_000;
@@ -275,6 +281,204 @@ function scheduleNextBackup(): void {
     });
 }
 
+// ── 智能歌单定时刷新 ─────────────────────────────────────────────────────────
+
+const RECOMMEND_SCHEDULE_KEY = 'recommend_schedule';
+
+export interface RecommendSchedule {
+  enabled: boolean;
+  hour: number;
+  minute: number;
+  /** 需要自动刷新的推荐模式 */
+  modes: RecommendMode[];
+  /** 是否同时刷新所有规则歌单 */
+  refreshRules: boolean;
+}
+
+const DEFAULT_RECOMMEND_SCHEDULE: RecommendSchedule = {
+  enabled: false,
+  hour: 6,
+  minute: 0,
+  modes: ['shuffle'],
+  refreshRules: true,
+};
+
+export async function loadRecommendSchedule(): Promise<RecommendSchedule> {
+  try {
+    const raw = await songloft.storage.get(RECOMMEND_SCHEDULE_KEY);
+    if (raw == null) return { ...DEFAULT_RECOMMEND_SCHEDULE };
+    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!data || typeof data !== 'object') return { ...DEFAULT_RECOMMEND_SCHEDULE };
+    const modes = Array.isArray(data.modes)
+      ? data.modes.filter((m: string) => (ALL_MODES as string[]).includes(m))
+      : DEFAULT_RECOMMEND_SCHEDULE.modes;
+    return {
+      enabled: !!data.enabled,
+      hour: typeof data.hour === 'number' && data.hour >= 0 && data.hour <= 23 ? data.hour : 6,
+      minute: typeof data.minute === 'number' && data.minute >= 0 && data.minute <= 59 ? data.minute : 0,
+      modes,
+      refreshRules: data.refreshRules !== false,
+    };
+  } catch {
+    return { ...DEFAULT_RECOMMEND_SCHEDULE };
+  }
+}
+
+export async function saveRecommendSchedule(schedule: RecommendSchedule): Promise<void> {
+  await songloft.storage.set(RECOMMEND_SCHEDULE_KEY, schedule);
+}
+
+let recommendTimerId: number | null = null;
+let recommendRefreshInProgress = false;
+
+/** 执行一轮智能歌单刷新（模式歌单 + 规则歌单），单项失败不中断整轮 */
+export async function doRecommendRefresh(): Promise<{ refreshed: string[]; failed: string[] }> {
+  if (recommendRefreshInProgress) {
+    return { refreshed: [], failed: ['上一轮刷新尚未完成'] };
+  }
+  recommendRefreshInProgress = true;
+  const refreshed: string[] = [];
+  const failed: string[] = [];
+
+  try {
+    const schedule = await loadRecommendSchedule();
+    for (const mode of schedule.modes) {
+      try {
+        const r = await materializePlaylist(mode);
+        refreshed.push(r.playlistName);
+      } catch (e) {
+        failed.push(`${mode}: ${String(e)}`);
+      }
+    }
+    if (schedule.refreshRules) {
+      const rules = await loadRules();
+      for (const rule of rules) {
+        try {
+          const r = await materializeRule(rule.id);
+          refreshed.push(r.playlistName);
+        } catch (e) {
+          failed.push(`${rule.name}: ${String(e)}`);
+        }
+      }
+    }
+    songloft.log.info(`[推荐刷新] 完成: 成功 ${refreshed.length}，失败 ${failed.length}`);
+    if (failed.length > 0) {
+      songloft.log.warn(`[推荐刷新] 失败项: ${failed.join('; ')}`);
+    }
+  } finally {
+    recommendRefreshInProgress = false;
+  }
+  return { refreshed, failed };
+}
+
+export function scheduleNextRecommendRefresh(): void {
+  if (recommendTimerId !== null) {
+    clearTimeout(recommendTimerId);
+    recommendTimerId = null;
+  }
+
+  loadRecommendSchedule()
+    .then((schedule: RecommendSchedule) => {
+      if (!schedule.enabled) return;
+
+      const now = Date.now();
+      const todayStart = new Date(now);
+      todayStart.setHours(schedule.hour, schedule.minute, 0, 0);
+      let nextFire = todayStart.getTime();
+      if (nextFire <= now) {
+        nextFire += 86400000;
+      }
+
+      const delay = nextFire - now;
+      songloft.log.info(`[推荐调度] 下次刷新: ${new Date(nextFire).toLocaleString('zh-CN')} (延迟 ${Math.round(delay / 60000)} 分钟)`);
+
+      recommendTimerId = setTimeout(async () => {
+        await doRecommendRefresh();
+        scheduleNextRecommendRefresh();
+      }, delay);
+    })
+    .catch((err: unknown) => {
+      songloft.log.error(`[推荐调度] 加载调度配置失败: ${String(err)}`);
+      setTimeout(() => scheduleNextRecommendRefresh(), 5 * 60 * 1000);
+    });
+}
+
+// ── AI 听歌报告定时推送 ────────────────────────────────────────────────────
+
+let aiReportTimerId: number | null = null;
+let aiReportInProgress = false;
+
+/** 计算下次推送时间：周报每周一，月报每月 1 日 */
+function computeNextAiReportFire(schedule: AiReportSchedule, now: number): number {
+  const d = new Date(now);
+  if (schedule.period === 'month') {
+    const candidate = new Date(d.getFullYear(), d.getMonth(), 1, schedule.hour, schedule.minute, 0, 0);
+    if (candidate.getTime() > now) return candidate.getTime();
+    return new Date(d.getFullYear(), d.getMonth() + 1, 1, schedule.hour, schedule.minute, 0, 0).getTime();
+  }
+  const candidate = new Date(d.getFullYear(), d.getMonth(), d.getDate(), schedule.hour, schedule.minute, 0, 0);
+  let daysToMonday = (1 - candidate.getDay() + 7) % 7;
+  if (daysToMonday === 0 && candidate.getTime() <= now) daysToMonday = 7;
+  candidate.setDate(candidate.getDate() + daysToMonday);
+  return candidate.getTime();
+}
+
+/** 生成并推送一份 AI 报告（供定时任务调用，失败只记日志不抛出）*/
+async function doAiReportPush(): Promise<void> {
+  if (aiReportInProgress) {
+    songloft.log.warn('[AI报告调度] 上一次推送尚未完成，跳过本次');
+    return;
+  }
+  aiReportInProgress = true;
+  try {
+    const schedule = await loadAiReportSchedule();
+    if (!(await isAiConfigured())) {
+      songloft.log.warn('[AI报告调度] AI 服务未配置，跳过推送');
+      return;
+    }
+    const { title, content } = await generateAiReport(schedule.period);
+    const pushed = await pushAiReport(title, content);
+    if (pushed.length > 0) {
+      songloft.log.info(`[AI报告调度] 推送成功: ${pushed.join(', ')}`);
+    } else {
+      songloft.log.warn('[AI报告调度] 没有已启用的推送渠道，报告未送出');
+    }
+  } catch (e) {
+    songloft.log.error(`[AI报告调度] 失败: ${String(e)}`);
+  } finally {
+    aiReportInProgress = false;
+  }
+}
+
+export function scheduleNextAiReport(): void {
+  if (aiReportTimerId !== null) {
+    clearTimeout(aiReportTimerId);
+    aiReportTimerId = null;
+  }
+
+  loadAiReportSchedule()
+    .then((schedule: AiReportSchedule) => {
+      if (!schedule.enabled) return;
+
+      const now = Date.now();
+      const nextFire = computeNextAiReportFire(schedule, now);
+      // 月报间隔可能超过 setTimeout 32 位上限，最长休眠 24 小时后重新校准
+      const delay = Math.min(nextFire - now, 86400000);
+      songloft.log.info(`[AI报告调度] 下次推送: ${new Date(nextFire).toLocaleString('zh-CN')} (本段延迟 ${Math.round(delay / 60000)} 分钟)`);
+
+      aiReportTimerId = setTimeout(async () => {
+        if (Date.now() >= nextFire - 1000) {
+          await doAiReportPush();
+        }
+        scheduleNextAiReport();
+      }, delay);
+    })
+    .catch((err: unknown) => {
+      songloft.log.error(`[AI报告调度] 加载调度配置失败: ${String(err)}`);
+      setTimeout(() => scheduleNextAiReport(), 5 * 60 * 1000);
+    });
+}
+
 // ── 里程碑检测 ─────────────────────────────────────────────────────────────────
 const MILESTONE_COUNTS = [10, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
 const milestoneReached = new Set<number>();
@@ -299,7 +503,15 @@ function subscribePlayEvents(): void {
       `[PlayEvent] type=${event.type} source=${event.source} songId=${event.song.id} ${event.song.artist} - ${event.song.title}`,
     );
 
-    // 只记录 finish 事件（播放完成），跳过 play 和 skip 事件
+    // skip 事件：累计切歌次数（供智能推荐使用），不计入播放历史
+    if (event.type === 'skip') {
+      recordSkip(event.song.id).catch((e) => {
+        songloft.log.error('记录切歌失败: ' + String(e));
+      });
+      return;
+    }
+
+    // 只记录 finish 事件（播放完成），跳过 play 事件
     if (event.type !== 'finish') {
       return;
     }
@@ -324,9 +536,11 @@ function subscribePlayEvents(): void {
 // ── 生命周期调度控制 ──────────────────────────────────────────────────────────
 
 export function startScheduler(): void {
-  songloft.log.info('[调度] 启动推送/备份定时任务');
+  songloft.log.info('[调度] 启动推送/备份/推荐/AI报告定时任务');
   scheduleNextPush();
   scheduleNextBackup();
+  scheduleNextRecommendRefresh();
+  scheduleNextAiReport();
 }
 
 export function stopScheduler(): void {
@@ -338,6 +552,14 @@ export function stopScheduler(): void {
   if (backupTimerId !== null) {
     clearTimeout(backupTimerId);
     backupTimerId = null;
+  }
+  if (recommendTimerId !== null) {
+    clearTimeout(recommendTimerId);
+    recommendTimerId = null;
+  }
+  if (aiReportTimerId !== null) {
+    clearTimeout(aiReportTimerId);
+    aiReportTimerId = null;
   }
   songloft.log.info('[调度] 已停止');
 }

@@ -131,12 +131,192 @@
     </div>
   </div>
 
+  <!-- 智能推荐面板 -->
+  <div class="tab-content" id="tab-recommend">
+    <div class="container">
+      <nav class="tabs" id="recommendSubTabs">
+        <button class="tab tab--active" data-subtab="rec-smart">智能推荐</button>
+        <button class="tab" data-subtab="rec-rules">规则歌单</button>
+        <button class="tab" data-subtab="rec-auto">自动刷新</button>
+      </nav>
+
+      <!-- 智能推荐 -->
+      <div id="subtab-rec-smart" class="subtab-content active">
+        <nav class="tabs" id="recommendModeTabs">
+          <button class="tab tab--active" data-mode="shuffle">随便听听</button>
+          <button class="tab" data-mode="gems">宝藏</button>
+          <button class="tab" data-mode="daypart">当前时段</button>
+          <button class="tab" data-mode="noskip">免切歌</button>
+          <button class="tab" data-mode="genrefav">最爱流派</button>
+        </nav>
+
+        <section class="card">
+          <div class="card-header" id="recommendTitle">随便听听</div>
+          <div class="card-body">
+            <p class="form-desc" id="recommendDesc"></p>
+            <ul class="history-list" id="recommendList">
+              <li class="history-list__empty">加载中…</li>
+            </ul>
+            <div class="toolbar-end" style="margin-top:12px;">
+              <button class="btn-outlined" id="btnRegenRecommend">换一批</button>
+              <button class="btn-filled" id="btnApplyRecommend">生成歌单</button>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- 规则歌单 -->
+      <div id="subtab-rec-rules" class="subtab-content">
+      <!-- AI 建歌单（未配置 AI 时隐藏） -->
+      <section class="card" id="aiNlCard" style="display:none;">
+        <div class="card-header">AI 建歌单</div>
+        <div class="card-body">
+          <p class="form-desc">用一句话描述你想要的歌单，AI 会自动翻译成筛选规则。</p>
+          <div class="form-group">
+            <input type="text" id="aiNlInput" class="text-field" maxlength="200" placeholder="例如：来点很久没听的 90 年代老歌，30 首">
+          </div>
+          <div id="aiNlResult" style="display:none;">
+            <p class="form-desc" id="aiNlRuleDesc"></p>
+            <ul class="history-list" id="aiNlPreviewList"></ul>
+          </div>
+          <div class="toolbar-end">
+            <button class="btn-outlined" id="btnAiNlParse">AI 解析</button>
+            <button class="btn-filled" id="btnAiNlSave" style="display:none;">保存并生成歌单</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 曲库标签质量（与标签刮削插件联动，未安装时隐藏） -->
+      <section class="card" id="tagLinkageCard" style="display:none;">
+        <div class="card-header">曲库标签质量</div>
+        <div class="card-body">
+          <p class="form-desc">规则歌单和探索推荐依赖流派/年份标签，标签越全推荐越准。本功能由标签刮削插件提供，从在线音乐平台匹配歌曲信息后写入标签。</p>
+          <div id="tagCoverageInfo" class="form-desc">检测中…</div>
+          <div id="tagScrapeProgress" class="form-desc" style="display:none;"></div>
+          <div class="toolbar-end">
+            <button class="btn-outlined" id="btnTagScrape">一键补全标签</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI 标签补全（未配置 AI 或无缺失时隐藏） -->
+      <section class="card" id="aiTagCard" style="display:none;">
+        <div class="card-header">AI 标签补全</div>
+        <div class="card-body">
+          <p class="form-desc">由 AI 根据歌名和艺术家推断流派/年份，适合刮削不到标签的歌曲（仅本地歌曲，每轮最多 200 首）。不建议使用深度思考模型，思考耗时容易导致请求超时。</p>
+          <div id="aiTagInfo" class="form-desc">检测中…</div>
+          <div id="aiTagProgress" class="form-desc" style="display:none;"></div>
+          <div class="toolbar-end">
+            <button class="btn-outlined" id="btnAiTagStart">AI 补全标签</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 规则歌单 -->
+      <section class="card">
+        <div class="card-header">规则歌单</div>
+        <div class="card-body">
+          <p class="form-desc">自定义筛选条件（条件之间为且的关系），生成专属歌单。</p>
+          <div id="ruleList">
+            <p class="form-desc">暂无规则</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ruleNameInput">歌单名称</label>
+            <input type="text" id="ruleNameInput" class="text-field" placeholder="例如：80年代摇滚">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ruleGenreSelect">流派</label>
+            <select id="ruleGenreSelect" class="select-field">
+              <option value="">不限</option>
+            </select>
+            <div id="ruleGenreHint" class="form-desc" style="display:none;"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ruleArtistInput">艺术家（包含匹配）</label>
+            <input type="text" id="ruleArtistInput" class="text-field" placeholder="留空不限">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ruleAlbumInput">专辑（包含匹配）</label>
+            <input type="text" id="ruleAlbumInput" class="text-field" placeholder="留空不限">
+          </div>
+          <div class="form-group">
+            <label class="md-checkbox"><input type="checkbox" id="ruleOnlyFavoriteCheck"><span>仅限收藏歌曲</span></label>
+            <div class="form-desc">只从主程序「收藏」歌单中的歌曲里筛选</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">年份范围</label>
+            <div class="push-time-inputs">
+              <input type="number" id="ruleYearFromInput" class="text-field push-time-num" min="0" placeholder="起">
+              <span class="push-time-sep">~</span>
+              <input type="number" id="ruleYearToInput" class="text-field push-time-num" min="0" placeholder="止">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">播放条件</label>
+            <div class="push-time-inputs">
+              <input type="number" id="ruleMinPlaysInput" class="text-field push-time-num" min="0" placeholder="播放≥N次">
+              <span class="push-time-sep">/</span>
+              <input type="number" id="ruleNotPlayedDaysInput" class="text-field push-time-num" min="0" placeholder="N天未听">
+            </div>
+            <div class="form-desc">留空或填 0 表示不限</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ruleSizeInput">歌单容量</label>
+            <input type="number" id="ruleSizeInput" class="text-field" min="1" max="500" placeholder="默认 50">
+          </div>
+          <div class="toolbar-end">
+            <button class="btn-filled" id="btnSaveRule">保存规则</button>
+          </div>
+        </div>
+      </section>
+      </div>
+
+      <!-- 自动刷新 -->
+      <div id="subtab-rec-auto" class="subtab-content">
+      <section class="card">
+        <div class="card-header">自动刷新</div>
+        <div class="card-body">
+          <p class="form-desc">每天定时重新生成智能歌单，保持歌单新鲜。</p>
+          <div class="form-group">
+            <label class="md-checkbox">
+              <input type="checkbox" id="recScheduleEnabledCheck">
+              <span>启用每日自动刷新</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="recScheduleHourInput">刷新时间</label>
+            <div class="push-time-inputs">
+              <input type="number" id="recScheduleHourInput" class="text-field push-time-num" min="0" max="23" placeholder="时">
+              <span class="push-time-sep">:</span>
+              <input type="number" id="recScheduleMinuteInput" class="text-field push-time-num" min="0" max="59" placeholder="分">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">刷新内容</label>
+            <label class="md-checkbox"><input type="checkbox" id="recModeShuffleCheck"><span>随便听听</span></label>
+            <label class="md-checkbox"><input type="checkbox" id="recModeGemsCheck"><span>久未听的宝藏</span></label>
+            <label class="md-checkbox"><input type="checkbox" id="recModeDaypartCheck"><span>当前时段偏好</span></label>
+            <label class="md-checkbox"><input type="checkbox" id="recModeNoskipCheck"><span>免切歌精选</span></label>
+            <label class="md-checkbox"><input type="checkbox" id="recModeGenrefavCheck"><span>最爱流派</span></label>
+            <label class="md-checkbox"><input type="checkbox" id="recRefreshRulesCheck"><span>所有规则歌单</span></label>
+          </div>
+          <div class="toolbar-end">
+            <button class="btn-outlined" id="btnRefreshNow">立即刷新一次</button>
+            <button class="btn-filled" id="btnSaveRecSchedule">保存设置</button>
+          </div>
+        </div>
+      </section>
+      </div>
+    </div>
+  </div>
+
   <!-- 设置面板 -->
   <div class="tab-content" id="tab-settings">
     <div class="container">
       <nav class="tabs" id="settingsSubTabs">
         <button class="tab tab--active" data-subtab="push">推送设置</button>
         <button class="tab" data-subtab="backup">备份设置</button>
+        <button class="tab" data-subtab="ai">AI</button>
         <button class="tab" data-subtab="history">历史记录</button>
         <button class="tab" data-subtab="danger">危险操作</button>
       </nav>
@@ -314,6 +494,78 @@
         </section>
       </div>
 
+      <!-- AI 设置 -->
+      <div id="subtab-ai" class="subtab-content">
+        <section class="card">
+          <div class="card-header">AI 服务配置</div>
+          <div class="card-body">
+            <p class="form-desc">填入任意 OpenAI 兼容服务（DeepSeek / 通义 / Kimi / 本地 Ollama 等），密钥仅保存在本地插件存储中。</p>
+            <p class="form-desc">建议选择响应快的非思考模型（如 deepseek-chat、qwen-turbo、doubao-1.5-lite）；不推荐深度思考/推理模型（如 deepseek-reasoner、qwen3 思考模式、doubao-seed-1.6），思考过程耗时长，标签补全等批量任务容易超时失败。</p>
+            <div class="form-group">
+              <label class="form-label" for="aiBaseUrlInput">API 地址</label>
+              <input type="text" id="aiBaseUrlInput" class="text-field" placeholder="例如 https://api.deepseek.com/v1">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="aiApiKeyInput">API 密钥</label>
+              <input type="password" id="aiApiKeyInput" class="text-field" placeholder="sk-...">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="aiModelInput">模型名</label>
+              <input type="text" id="aiModelInput" class="text-field" placeholder="例如 deepseek-chat">
+            </div>
+            <div class="toolbar-end">
+              <button class="btn-outlined" id="btnTestAi">测试连接</button>
+              <button class="btn-filled" id="btnSaveAiConfig">保存配置</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-header">AI 听歌报告</div>
+          <div class="card-body">
+            <p class="form-desc">由 AI 根据听歌数据写一份个性化报告，可推送到已启用的推送渠道。</p>
+            <div class="form-group">
+              <label class="form-label" for="aiReportPeriodSelect">报告周期</label>
+              <select id="aiReportPeriodSelect" class="select-field">
+                <option value="week">最近 7 天</option>
+                <option value="month">最近 30 天</option>
+              </select>
+            </div>
+            <div id="aiReportResult" class="form-desc" style="display:none;white-space:pre-wrap;"></div>
+            <div class="toolbar-end">
+              <button class="btn-outlined" id="btnAiReportPreview">生成预览</button>
+              <button class="btn-filled" id="btnAiReportPush">生成并推送</button>
+            </div>
+            <hr class="divider" style="margin:16px 0;border:none;border-top:1px solid var(--md-outline-variant,#ddd);">
+            <div class="form-group">
+              <label class="md-checkbox">
+                <input type="checkbox" id="aiReportScheduleEnabledCheck">
+                <span>启用定时推送</span>
+              </label>
+              <p class="form-desc">周报每周一推送，月报每月 1 日推送，需先启用至少一个推送渠道。</p>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="aiReportSchedulePeriodSelect">定时报告类型</label>
+              <select id="aiReportSchedulePeriodSelect" class="select-field">
+                <option value="week">周报（每周一）</option>
+                <option value="month">月报（每月 1 日）</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="aiReportScheduleHourInput">推送时间</label>
+              <div class="push-time-inputs">
+                <input type="number" id="aiReportScheduleHourInput" class="text-field push-time-num" min="0" max="23" placeholder="时">
+                <span class="push-time-sep">:</span>
+                <input type="number" id="aiReportScheduleMinuteInput" class="text-field push-time-num" min="0" max="59" placeholder="分">
+              </div>
+            </div>
+            <div class="toolbar-end">
+              <button class="btn-filled" id="btnSaveAiReportSchedule">保存定时设置</button>
+            </div>
+          </div>
+        </section>
+      </div>
+
       <!-- 历史记录 -->
       <div id="subtab-history" class="subtab-content">
         <section class="card">
@@ -361,15 +613,19 @@
           </div>
         </section>
       </div>
-
-      <div class="toast" id="toast"></div>
     </div>
   </div>
+
+  <!-- Toast（全局，不能放在任何 tab-content 内，否则切 Tab 后不可见） -->
+  <div class="toast" id="toast"></div>
 
   <!-- Tab Bar -->
   <nav class="tab-bar" id="mainTabs">
     <button class="tab-item active" data-tab="stats">
       <span>统计</span>
+    </button>
+    <button class="tab-item" data-tab="recommend">
+      <span>推荐</span>
     </button>
     <button class="tab-item" data-tab="settings">
       <span>设置</span>

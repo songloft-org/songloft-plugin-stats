@@ -7,8 +7,18 @@ import type { TimeRange } from './types';
 import { loadPushConfig, savePushConfig, loadPushSchedule, savePushSchedule } from './push/config';
 import { getBackupDavConfigs, saveBackupDavConfigs, getBackupDavConfig, loadBackupSchedule, saveBackupSchedule, BackupDavConfig } from './backup/config';
 import { testConnection, listDirectory, uploadBackup, downloadBackup } from './webdav';
-import { doPush, scheduleNextPush, scheduleNextBackup } from './scheduler';
-import type { PushResult } from './scheduler';
+import { doPush, scheduleNextPush, scheduleNextBackup, loadRecommendSchedule, saveRecommendSchedule, scheduleNextRecommendRefresh, doRecommendRefresh, scheduleNextAiReport } from './scheduler';
+import type { PushResult, RecommendSchedule } from './scheduler';
+import { generateRecommend, materializePlaylist, MODE_INFO, ALL_MODES } from './recommend/playlists';
+import type { RecommendMode } from './recommend/playlists';
+import { loadRules, upsertRule, deleteRule, generateRuleItems, materializeRule, getLibraryFacets } from './recommend/rules';
+import { getTagStatus, triggerTagScrape, getTagScrapeProgress } from './recommend/linkage';
+import { loadAiConfig, saveAiConfig, isAiConfigured, testAiConnection } from './ai/client';
+import { nlToRule } from './ai/nlplaylist';
+import { generateAiReport, pushAiReport, loadAiReportSchedule, saveAiReportSchedule } from './ai/report';
+import type { ReportPeriod, AiReportSchedule } from './ai/report';
+import { countMissingTags, startAiTagging, getAiTagProgress } from './ai/tagger';
+import { loadSkipCounts } from './store';
 
 const MAX_LIMIT = 100;
 
@@ -381,6 +391,281 @@ function registerStatsHandlers(router: Router): void {
     } catch (e) {
       return jsonResponse({ success: false, error: String(e) });
     }
+  });
+  // ── 智能推荐 ──────────────────────────────────────────────────────────────────
+
+  router.get('/api/recommend/modes', async () => {
+    const skips = await loadSkipCounts();
+    let totalSkips = 0;
+    for (const v of skips.values()) totalSkips += v;
+    return jsonResponse({
+      success: true,
+      data: {
+        modes: ALL_MODES.map((mode) => ({ mode, ...MODE_INFO[mode] })),
+        totalSkips,
+      },
+    });
+  });
+
+  router.get('/api/recommend', async (req) => {
+    try {
+      const q = parseQuery(req.query);
+      const mode = String(q.mode || 'shuffle') as RecommendMode;
+      if (!ALL_MODES.includes(mode)) {
+        return jsonResponse({ success: false, error: '无效的推荐模式: ' + mode });
+      }
+      const limit = parseInt(String(q.limit || '30'), 10) || 30;
+      const items = await generateRecommend(mode, limit);
+      return jsonResponse({ success: true, data: { mode, items } });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.post('/api/recommend/apply', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      const mode = String(input.mode || 'shuffle') as RecommendMode;
+      if (!ALL_MODES.includes(mode)) {
+        return jsonResponse({ success: false, error: '无效的推荐模式: ' + mode });
+      }
+      const limit = typeof input.limit === 'number' ? input.limit : 30;
+      const result = await materializePlaylist(mode, limit);
+      return jsonResponse({ success: true, data: result });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // ── 规则歌单 ────────────────────────────────────────────────────────────────
+
+  router.get('/api/recommend/facets', async () => {
+    try {
+      return jsonResponse({ success: true, data: await getLibraryFacets() });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.get('/api/recommend/rules', async () => {
+    return jsonResponse({ success: true, data: await loadRules() });
+  });
+
+  router.post('/api/recommend/rules', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      if (input.action === 'delete') {
+        await deleteRule(String(input.id || ''));
+        return jsonResponse({ success: true });
+      }
+      const rule = await upsertRule(input.rule || {});
+      return jsonResponse({ success: true, data: rule });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.get('/api/recommend/rules/preview', async (req) => {
+    try {
+      const q = parseQuery(req.query);
+      const id = String(q.id || '');
+      const rules = await loadRules();
+      const rule = rules.find((r) => r.id === id);
+      if (!rule) return jsonResponse({ success: false, error: '规则不存在' });
+      const items = await generateRuleItems(rule);
+      return jsonResponse({ success: true, data: { rule, items } });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.post('/api/recommend/rules/apply', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      const result = await materializeRule(String(input.id || ''));
+      return jsonResponse({ success: true, data: result });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // ── 推荐定时刷新 ──────────────────────────────────────────────────────────
+
+  router.get('/api/recommend/schedule', async () => {
+    return jsonResponse({ success: true, data: await loadRecommendSchedule() });
+  });
+
+  router.post('/api/recommend/schedule', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      if (typeof input.hour !== 'number' || input.hour < 0 || input.hour > 23) {
+        return jsonResponse({ success: false, error: 'Invalid hour, must be 0-23' });
+      }
+      if (typeof input.minute !== 'number' || input.minute < 0 || input.minute > 59) {
+        return jsonResponse({ success: false, error: 'Invalid minute, must be 0-59' });
+      }
+      const modes = Array.isArray(input.modes)
+        ? input.modes.filter((m: string) => (ALL_MODES as string[]).includes(m))
+        : [];
+      const schedule: RecommendSchedule = {
+        enabled: !!input.enabled,
+        hour: input.hour,
+        minute: input.minute,
+        modes,
+        refreshRules: input.refreshRules !== false,
+      };
+      await saveRecommendSchedule(schedule);
+      scheduleNextRecommendRefresh();
+      return jsonResponse({ success: true, data: schedule });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.post('/api/recommend/refresh', async () => {
+    try {
+      const result = await doRecommendRefresh();
+      return jsonResponse({ success: true, data: result });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // ── 标签刮削插件联动 ────────────────────────────────────────────────────
+
+  router.get('/api/linkage/tag/status', async () => {
+    try {
+      return jsonResponse({ success: true, data: await getTagStatus() });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.post('/api/linkage/tag/scrape', async () => {
+    try {
+      return jsonResponse({ success: true, data: await triggerTagScrape() });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.get('/api/linkage/tag/progress', async (req) => {
+    try {
+      const q = parseQuery(req.query);
+      const taskId = String(q.taskId || '');
+      if (!taskId) return jsonResponse({ success: false, error: '缺少 taskId' });
+      return jsonResponse({ success: true, data: await getTagScrapeProgress(taskId) });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // ── AI 功能 ─────────────────────────────────────────────────────────────────
+
+  router.get('/api/ai/config', async () => {
+    const [config, configured] = await Promise.all([loadAiConfig(), isAiConfigured()]);
+    return jsonResponse({ success: true, data: { config, configured } });
+  });
+
+  router.post('/api/ai/config', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      await saveAiConfig({
+        baseUrl: String(input.baseUrl || ''),
+        apiKey: String(input.apiKey || ''),
+        model: String(input.model || ''),
+      });
+      return jsonResponse({ success: true, data: { configured: await isAiConfigured() } });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.post('/api/ai/test', async () => {
+    try {
+      const reply = await testAiConnection();
+      return jsonResponse({ success: true, data: { reply } });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // 自然语言建歌单：解析 + 预览（保存/物化复用现有 rules 接口）
+  router.post('/api/ai/nlplaylist', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      const result = await nlToRule(String(input.text || ''));
+      return jsonResponse({ success: true, data: result });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // AI 听歌报告：生成文案，push=true 时同时推送到已启用渠道
+  router.post('/api/ai/report', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      const period: ReportPeriod = input.period === 'month' ? 'month' : 'week';
+      const { title, content } = await generateAiReport(period);
+      let pushed: string[] = [];
+      if (input.push) {
+        pushed = await pushAiReport(title, content);
+      }
+      return jsonResponse({ success: true, data: { title, content, pushed } });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // AI 报告定时推送（周报每周一 / 月报每月 1 日）
+  router.get('/api/ai/report/schedule', async () => {
+    return jsonResponse({ success: true, data: await loadAiReportSchedule() });
+  });
+
+  router.post('/api/ai/report/schedule', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      if (typeof input.hour !== 'number' || input.hour < 0 || input.hour > 23) {
+        return jsonResponse({ success: false, error: '无效的小时' });
+      }
+      if (typeof input.minute !== 'number' || input.minute < 0 || input.minute > 59) {
+        return jsonResponse({ success: false, error: '无效的分钟' });
+      }
+      const schedule: AiReportSchedule = {
+        enabled: !!input.enabled,
+        period: input.period === 'month' ? 'month' : 'week',
+        hour: input.hour,
+        minute: input.minute,
+      };
+      await saveAiReportSchedule(schedule);
+      scheduleNextAiReport();
+      return jsonResponse({ success: true, data: schedule });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // AI 标签补全
+  router.get('/api/ai/tag/status', async () => {
+    try {
+      const [missing, configured] = await Promise.all([countMissingTags(), isAiConfigured()]);
+      return jsonResponse({ success: true, data: { ...missing, configured, progress: getAiTagProgress() } });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.post('/api/ai/tag/start', async () => {
+    try {
+      const total = await startAiTagging();
+      return jsonResponse({ success: true, data: { total } });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  router.get('/api/ai/tag/progress', async () => {
+    return jsonResponse({ success: true, data: getAiTagProgress() });
   });
 }
 
