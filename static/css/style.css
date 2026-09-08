@@ -111,7 +111,7 @@ body {
   display: flex;
   gap: 4px;
   padding: 4px;
-  background: var(--md-surface-1, #F0EEF8);
+  background: var(--md-surface-container-low, #F3F3FA);
   border-radius: 12px;
 }
 
@@ -171,7 +171,7 @@ body {
 }
 
 .stat-tile {
-  background: var(--md-surface-1, #F0EEF8);
+  background: var(--md-surface-container-low, #F3F3FA);
   border-radius: 16px;
   padding: 16px;
   display: flex;
@@ -482,7 +482,7 @@ body {
   font-family: inherit;
   font-size: 14px;
   color: var(--md-on-surface, #1c1b1f);
-  background: var(--md-surface-2, #E8E6F2);
+  background: var(--md-surface-container-high, #E7E8EE);
   border: 1.5px solid var(--md-outline-variant, #cac4d0);
   border-radius: 8px;
   padding: 10px 14px;
@@ -696,7 +696,7 @@ body {
   left: 50%;
   transform: translateX(-50%) translateY(80px);
   padding: 14px 24px;
-  background: var(--md-surface-2, #E8E6F2);
+  background: var(--md-surface-container-high, #E7E8EE);
   color: var(--md-on-surface, #1c1b1f);
   border-radius: 8px;
   font-size: 14px;
