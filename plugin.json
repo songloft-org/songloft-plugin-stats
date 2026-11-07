@@ -13,11 +13,12 @@
   "permissions": [
     "storage",
     "songs.read",
+    "tags.write",
     "playlists.read",
     "playlists.write"
   ],
   "updateUrl": "https://raw.githubusercontent.com/songloft-org/songloft-plugin-stats/main/plugin.json",
   "download_url": "https://github.com/songloft-org/songloft-plugin-stats/releases/download/v2026.9.8/stats.jsplugin.zip",
-  "entryHash": "",
-  "zipHash": ""
+  "entryHash": "601aaaa6be44d26761d73d5676ba6d494c4fb3fdfe5495855b3ac87a8b5352b1",
+  "zipHash": "abb3684194cd54d98cfa28c5c19164a639addb584b8cc9aa0049432801be7f4a"
 }

@@ -4,14 +4,15 @@
   "description": "记录播放历史，统计听歌次数与艺术家排行，支持定时推送听歌报告、WebDAV 备份和定时自动备份",
   "private": true,
   "scripts": {
-    "build": "songloft-plugin build",
+    "build": "tsc --noEmit && songloft-plugin build",
     "dev": "songloft-plugin dev",
     "validate": "songloft-plugin validate",
+    "test": "esbuild src/aggregator.ts --bundle --format=esm --outfile=tests/.gen/aggregator.mjs && esbuild src/recommend/profile.ts --bundle --format=esm --outfile=tests/.gen/profile.mjs && esbuild src/recommend/scorer.ts --bundle --format=esm --outfile=tests/.gen/scorer.mjs && esbuild src/pusher.ts --bundle --format=esm --outfile=tests/.gen/pusher.mjs && esbuild src/store.ts --bundle --format=esm --outfile=tests/.gen/store.mjs && esbuild src/router.ts --bundle --format=esm --outfile=tests/.gen/router.mjs && node --test \"tests/*.test.mjs\"",
     "publish:release": "songloft-plugin publish"
   },
   "devDependencies": {
-    "@songloft/plugin-builder": "^2.12.3",
-    "@songloft/plugin-sdk": "^2.12.3",
+    "@songloft/plugin-builder": "^2.18.0",
+    "@songloft/plugin-sdk": "^2.18.0",
     "typescript": "^5.9.3"
   }
 }

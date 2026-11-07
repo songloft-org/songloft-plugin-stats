@@ -533,10 +533,35 @@ function subscribePlayEvents(): void {
   songloft.log.info('[PlayEvent] 播放事件订阅已注册');
 }
 
+// ── 保活心跳 ──────────────────────────────────────────────────────────────────
+// 宿主在插件 10 分钟无活动且无临近定时器时会空闲驱逐 VM（health.go checkIdle），
+// 驱逐会连带清除播放事件订阅（宿主 BroadcastPlayEvent 不会唤醒未加载的插件），
+// 驱逐期间发生的播放/切歌将静默丢失，统计出现空洞。
+// 这里保持一个 5 分钟一次的空心跳：下一定时器 deadline 始终落在宿主 30 分钟
+// 阈值（3 × idleTimeout）内、lastActive 也持续刷新，插件因此不会被驱逐。
+// 代价是插件 VM 常驻内存（数 MB 级）——对以数据完整性为生命线的统计插件是值得的权衡。
+const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+let heartbeatTimerId: number | null = null;
+
+function startHeartbeat(): void {
+  stopHeartbeat();
+  heartbeatTimerId = setInterval(() => {
+    // 空回调即可：定时器到期本身就会让宿主刷新 lastActive
+  }, HEARTBEAT_INTERVAL_MS);
+}
+
+function stopHeartbeat(): void {
+  if (heartbeatTimerId !== null) {
+    clearInterval(heartbeatTimerId);
+    heartbeatTimerId = null;
+  }
+}
+
 // ── 生命周期调度控制 ──────────────────────────────────────────────────────────
 
 export function startScheduler(): void {
-  songloft.log.info('[调度] 启动推送/备份/推荐/AI报告定时任务');
+  songloft.log.info('[调度] 启动推送/备份/推荐/AI报告定时任务与保活心跳');
+  startHeartbeat();
   scheduleNextPush();
   scheduleNextBackup();
   scheduleNextRecommendRefresh();
@@ -545,6 +570,7 @@ export function startScheduler(): void {
 
 export function stopScheduler(): void {
   songloft.events.offPlayEvent();
+  stopHeartbeat();
   if (pushTimerId !== null) {
     clearTimeout(pushTimerId);
     pushTimerId = null;

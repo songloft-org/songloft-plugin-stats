@@ -182,7 +182,9 @@ function registerStatsHandlers(router: Router): void {
       if (input.config) {
         // 新格式：per-platform config { feishu: { token, enabled }, wxpusher: { token, enabled } }
         // 旧格式：{ platform, token, enabled }
-        if (input.config.feishu !== undefined) {
+        // 判定看是否携带任一平台键：只更新单个平台（如仅 wxpusher）的新格式
+        // 请求也会走合并分支，不能因缺 feishu 键就被误判成旧格式
+        if (input.config.feishu !== undefined || input.config.wxpusher !== undefined) {
           // 合并现有配置，避免覆盖其他平台
           const existing = await loadPushConfig();
           const merged = {
@@ -191,17 +193,18 @@ function registerStatsHandlers(router: Router): void {
           };
           await savePushConfig(merged);
         } else {
-          // 兼容旧格式，转换为新格式
+          // 兼容旧格式 { platform, token, enabled }：在现有配置上合并，
+          // 只覆盖目标平台，避免把另一平台的 token/enabled 清掉
           const platform = input.config.platform === 'feishu' || input.config.platform === 'wxpusher' ? input.config.platform : 'feishu';
-          const newConfig = {
-            feishu: { token: '', enabled: false },
-            wxpusher: { token: '', enabled: false },
+          const existing = await loadPushConfig();
+          const merged: typeof existing = {
+            ...existing,
+            [platform]: {
+              token: input.config.token || '',
+              enabled: !!input.config.enabled,
+            },
           };
-          newConfig[platform as keyof typeof newConfig] = {
-            token: input.config.token || '',
-            enabled: !!input.config.enabled,
-          };
-          await savePushConfig(newConfig);
+          await savePushConfig(merged);
           songloft.log.info(`[推送配置] 平台=${platform}, 启用=${input.config.enabled}`);
         }
       }

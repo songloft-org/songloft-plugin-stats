@@ -3,7 +3,9 @@
 // 一套配置通吃 DeepSeek / 通义 / Kimi / 本地 Ollama 等 OpenAI 兼容服务
 
 const AI_CONFIG_KEY = 'ai_config';
-const DEFAULT_TIMEOUT_MS = 60 * 1000;
+// 宿主 fetch 代理有 30s 硬超时（X-Fetch-Timeout-Ms 只能下调不能上调），
+// 本地兜底超时与之对齐：再大的值也不会生效，反而让报错文案（"60s"）失真
+const DEFAULT_TIMEOUT_MS = 30 * 1000;
 const MAX_TOKENS = 2048;
 
 export interface AiConfig {

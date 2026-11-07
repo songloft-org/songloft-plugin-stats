@@ -88,22 +88,26 @@ export function computeSummary(records: PlayRecord[], range?: TimeRange): StatsS
 export function computeTrends(records: PlayRecord[], days: number): { date: string; count: number }[] {
   const dayMap = new Map<string, number>();
   const now = new Date();
-  // 生成最近 days 天的日期 key
+  const dayKey = (d: Date): string =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  // 生成最近 days 天的日期 key（含年份，避免跨年同月日被误归入今年窗口）
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-    const key = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
-    dayMap.set(key, 0);
+    dayMap.set(dayKey(d), 0);
   }
   // 归入对应日期
   for (const r of records) {
     if (!isValidRecord(r)) continue;
-    const d = new Date(r.timestamp);
-    const key = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+    const key = dayKey(new Date(r.timestamp));
     if (dayMap.has(key)) {
       dayMap.set(key, (dayMap.get(key) || 0) + 1);
     }
   }
-  return [...dayMap.entries()].map(([date, count]) => ({ date, count }));
+  // 输出展示仍用 MM/DD（Map 保持插入序）
+  return [...dayMap.entries()].map(([key, count]) => {
+    const [, month, day] = key.split('-');
+    return { date: `${month}/${day}`, count };
+  });
 }
 
 /** 按时段（凌晨/上午/下午/晚上）统计播放占比 */

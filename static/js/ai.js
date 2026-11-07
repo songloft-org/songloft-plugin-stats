@@ -268,7 +268,16 @@ function startAiTagPolling() {
       if (!resp.success) throw new Error(resp.error || '查询失败');
       const p = resp.data;
       progressEl.textContent = `补全进度：${p.processed}/${p.total}（成功 ${p.success}，失败 ${p.failed}）`;
-      if (p.status === 'done' || p.status === 'error') {
+      if (p.status === 'idle' && !p.total) {
+        // 任务状态是插件内存态：若插件被空闲驱逐后重载，进度丢失、状态回到 idle，
+        // 此时轮询永远不会等到 done，需主动终止并恢复按钮
+        clearInterval(aiTagPollTimer);
+        aiTagPollTimer = null;
+        btn.disabled = false;
+        btn.textContent = 'AI 补全标签';
+        progressEl.textContent += ' — 任务已中断，请重新启动';
+        showToast('AI 补全任务已中断，请重新启动', false);
+      } else if (p.status === 'done' || p.status === 'error') {
         clearInterval(aiTagPollTimer);
         aiTagPollTimer = null;
         btn.disabled = false;

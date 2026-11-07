@@ -31,19 +31,25 @@ export async function getMaxHistory(): Promise<number> {
     : DEFAULT_MAX_HISTORY;
 }
 
-/** 设置历史记录保留上限（最低 1000）*/
+/** 设置历史记录保留上限（最低 1000）。裁剪经写入队列串行化，避免与在途 append 竞态 */
 export async function setMaxHistory(limit: number): Promise<void> {
   const clamped = Math.max(1000, Math.min(100000, limit));
   await saveSettings({ maxHistory: clamped });
-  // 如果当前数据超过新上限，立即裁剪
-  const history = await loadHistory();
-  if (history.length > clamped) {
-    await flushSave(history);
-    // 裁剪后重建增量聚合状态
-    if (incInitialized) {
-      rebuildIncState(cache!);
+  const p = writeQueue.then(async () => {
+    // 如果当前数据超过新上限，立即裁剪
+    const history = await loadHistory();
+    if (history.length > clamped) {
+      await flushSave(history);
+      // 裁剪后重建增量聚合状态
+      if (incInitialized) {
+        rebuildIncState(cache!);
+      }
     }
-  }
+  });
+  writeQueue = p.catch((e) => {
+    songloft.log.error('[store] setMaxHistory 失败: ' + String(e));
+  });
+  return p;
 }
 
 // ── 歌曲元数据缓存（与 scheduler 共用，避免重复查询 songloft.songs.getById）─────
@@ -63,7 +69,8 @@ export async function getSongMeta(songId: number): Promise<{ album?: string; dur
     }
     return meta;
   } catch {
-    metaCache.set(songId, {});
+    // 瞬时查询失败不写入缓存：缓存空元数据会把该歌的 album/duration/type
+    // 污染到后续所有记录（且去重窗口退化为 10s），下次播放时重试即可
     return {};
   }
 }
@@ -341,40 +348,49 @@ export async function exportHistory(): Promise<PlayRecord[]> {
   return await loadHistory();
 }
 
-/** 导入记录并合并（按 songId + timestamp 去重），返回新增条数 */
+/** 导入记录并合并（按 songId + timestamp 去重），返回新增条数。经写入队列串行化 */
 export async function importRecords(newRecords: PlayRecord[]): Promise<number> {
   if (!Array.isArray(newRecords) || newRecords.length === 0) return 0;
 
-  const history = await loadHistory();
-  const keySet = new Set<string>();
-  for (const r of history) {
-    keySet.add(`${r.songId}|${r.timestamp}`);
-  }
-
-  let added = 0;
-  for (const r of newRecords) {
-    if (!r || typeof r.songId !== 'number' || typeof r.timestamp !== 'number'
-        || !r.title || !r.artist) continue;
-    const key = `${r.songId}|${r.timestamp}`;
-    if (keySet.has(key)) continue;
-    keySet.add(key);
-    history.push(r);
-    added++;
-  }
-
-  if (added > 0) {
-    // 按 timestamp 排序
-    history.sort((a, b) => a.timestamp - b.timestamp);
-    await flushSave(history);
-    // 导入后重建增量聚合状态
-    if (incInitialized) {
-      rebuildIncState(cache!);
+  const p = writeQueue.then(async (): Promise<number> => {
+    const history = await loadHistory();
+    const keySet = new Set<string>();
+    for (const r of history) {
+      keySet.add(`${r.songId}|${r.timestamp}`);
     }
-    // 导入后去重索引失效，下次查询时重建
-    dedupIndex = null;
-  }
 
-  return added;
+    let added = 0;
+    for (const r of newRecords) {
+      if (!r || typeof r.songId !== 'number' || typeof r.timestamp !== 'number'
+          || !r.title || !r.artist) continue;
+      const key = `${r.songId}|${r.timestamp}`;
+      if (keySet.has(key)) continue;
+      keySet.add(key);
+      history.push(r);
+      added++;
+    }
+
+    if (added > 0) {
+      // 按 timestamp 排序
+      history.sort((a, b) => a.timestamp - b.timestamp);
+      await flushSave(history);
+      // 导入后重建增量聚合状态
+      if (incInitialized) {
+        rebuildIncState(cache!);
+      }
+      // 导入后去重索引失效，下次查询时重建
+      dedupIndex = null;
+    }
+
+    return added;
+  });
+  writeQueue = p.catch((e) => {
+    songloft.log.error('[store] importRecords 失败: ' + String(e));
+    return 0;
+  }).then(() => {
+    // noop
+  });
+  return p;
 }
 
 /** 获取当前总记录数（从缓存读取，不触发存储 IO）*/
@@ -383,22 +399,28 @@ export async function getRecordCount(): Promise<number> {
   return h.length;
 }
 
-/** 清空所有播放历史（含切歌计数）*/
+/** 清空所有播放历史（含切歌计数）。经写入队列串行化，确保先排空的在途 append 不会把旧数据写回 */
 export async function resetHistory(): Promise<void> {
-  await songloft.storage.delete(HISTORY_KEY);
-  await songloft.storage.delete(SKIP_KEY);
-  cache = [];
-  dedupIndex = null;
-  skipCache = new Map();
-  // 重置增量聚合状态
-  incArtistMap.clear();
-  incSongMap.clear();
-  incAlbumMap.clear();
-  for (const key of Object.keys(incBySource)) delete incBySource[key];
-  for (const key of Object.keys(incByMediaType)) delete incByMediaType[key];
-  incUniqueSongs.clear();
-  incUniqueArtists.clear();
-  incTotalDurationSec = 0;
-  incTotalPlays = 0;
-  incInitialized = true; // 已初始化但为空
+  const p = writeQueue.then(async () => {
+    await songloft.storage.delete(HISTORY_KEY);
+    await songloft.storage.delete(SKIP_KEY);
+    cache = [];
+    dedupIndex = null;
+    skipCache = new Map();
+    // 重置增量聚合状态
+    incArtistMap.clear();
+    incSongMap.clear();
+    incAlbumMap.clear();
+    for (const key of Object.keys(incBySource)) delete incBySource[key];
+    for (const key of Object.keys(incByMediaType)) delete incByMediaType[key];
+    incUniqueSongs.clear();
+    incUniqueArtists.clear();
+    incTotalDurationSec = 0;
+    incTotalPlays = 0;
+    incInitialized = true; // 已初始化但为空
+  });
+  writeQueue = p.catch((e) => {
+    songloft.log.error('[store] resetHistory 失败: ' + String(e));
+  });
+  return p;
 }

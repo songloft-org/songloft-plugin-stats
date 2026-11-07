@@ -64,8 +64,12 @@ export function scoreSong(p: SongProfile, maxPlays: number, now: number, w: Scor
 export function weightedSample<T>(items: { item: T; score: number }[], count: number): T[] {
   if (items.length <= count) return items.map((x) => x.item);
 
-  // 分数平移到正区间作为抽样权重
-  const minScore = Math.min(...items.map((x) => x.score));
+  // 分数平移到正区间作为抽样权重。曲库可达数万首，用循环求 min，
+  // 避免 Math.min(...arr) 大数组展开导致栈溢出
+  let minScore = items[0].score;
+  for (const x of items) {
+    if (x.score < minScore) minScore = x.score;
+  }
   const pool = items.map((x) => ({ item: x.item, weight: x.score - minScore + 0.1 }));
   const result: T[] = [];
 

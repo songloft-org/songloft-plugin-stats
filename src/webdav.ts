@@ -2,9 +2,28 @@
 
 import type { BackupDavConfig } from './backup/config'
 
+/** Basic 认证头所需的 base64。btoa 只接受 Latin1，非 ASCII 用户名/密码（如中文）
+ * 会抛异常导致静默丢失认证头，这里先按 UTF-8 编成字节串再交给 btoa */
 function getBasicAuth(str: string): string {
   try {
-    return (globalThis as any).btoa(str)
+    const bytes: number[] = []
+    for (let i = 0; i < str.length; i++) {
+      let c = str.charCodeAt(i)
+      if (c >= 0xd800 && c <= 0xdbff && i + 1 < str.length) {
+        const c2 = str.charCodeAt(i + 1)
+        if (c2 >= 0xdc00 && c2 <= 0xdfff) {
+          c = 0x10000 + ((c - 0xd800) << 10) + (c2 - 0xdc00)
+          i++
+        }
+      }
+      if (c < 0x80) bytes.push(c)
+      else if (c < 0x800) bytes.push(0xc0 | (c >> 6), 0x80 | (c & 63))
+      else if (c < 0x10000) bytes.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63))
+      else bytes.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63))
+    }
+    let bin = ''
+    for (const b of bytes) bin += String.fromCharCode(b)
+    return (globalThis as any).btoa(bin)
   } catch {
     return ''
   }
