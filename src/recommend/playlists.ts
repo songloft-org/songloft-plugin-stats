@@ -37,6 +37,44 @@ const GEMS_MIN_IDLE_DAYS = 30;
 const GENREFAV_WINDOW_DAYS = 30;
 const GENREFAV_TOP_GENRES = 3;
 
+const EXCLUDE_KEY = 'exclude_playlists';
+
+/** 读取被排除的歌单名列表 */
+export async function loadExcludePlaylists(): Promise<string[]> {
+  try {
+    const raw = await songloft.storage.get(EXCLUDE_KEY);
+    if (raw == null) return [];
+    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    const arr = Array.isArray(data) ? data : [];
+    return arr.map(String).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+export async function saveExcludePlaylists(names: string[]): Promise<void> {
+  const clean = [...new Set(names.map((n) => String(n).trim()).filter(Boolean))];
+  await songloft.storage.set(EXCLUDE_KEY, JSON.stringify(clean));
+}
+
+/** 收集被排除歌单内的歌曲 ID 集合 */
+async function loadExcludedSongIds(): Promise<Set<number>> {
+  const names = await loadExcludePlaylists();
+  const excluded = new Set<number>();
+  if (!names.length) return excluded;
+  try {
+    const playlists = await songloft.playlists.list();
+    for (const pl of playlists) {
+      if (!names.includes(pl.name)) continue;
+      const songs = await songloft.playlists.getSongs(pl.id);
+      for (const s of songs) excluded.add(Number(s.id));
+    }
+  } catch (e) {
+    songloft.log.warn('[推荐] 读取排除歌单失败: ' + String(e));
+  }
+  return excluded;
+}
+
 function toItem(p: SongProfile, reason: string): RecommendItem {
   return { songId: p.songId, title: p.title, artist: p.artist, album: p.album, reason };
 }
@@ -84,7 +122,8 @@ export async function generateRecommend(mode: RecommendMode, size?: number): Pro
   const limit = Math.min(200, Math.max(5, size || DEFAULT_SIZE));
   const now = Date.now();
   const profiles = await buildProfiles();
-  const played = [...profiles.values()];
+  const excluded = await loadExcludedSongIds();
+  const played = [...profiles.values()].filter((p) => !excluded.has(p.songId));
   const maxPlays = played.reduce((m, p) => Math.max(m, p.plays), 0);
 
   switch (mode) {
@@ -100,7 +139,7 @@ export async function generateRecommend(mode: RecommendMode, size?: number): Pro
       // 探索部分需要全曲库（失败不影响主列表）
       let explore: RecommendItem[] = [];
       try {
-        const library = await fetchLibrary();
+        const library = (await fetchLibrary()).filter((s) => !excluded.has(s.songId));
         explore = pickExplore(library, profiles, exploreCount);
       } catch (e) {
         songloft.log.warn('[推荐] 拉取曲库失败，跳过探索曲目: ' + String(e));
@@ -144,7 +183,7 @@ export async function generateRecommend(mode: RecommendMode, size?: number): Pro
 
     case 'genrefav': {
       // 近 30 天各流派播放量→取前 3 名，再从这些流派内按热度加权选歌（含未听过的）
-      const library = await fetchLibrary();
+      const library = (await fetchLibrary()).filter((s) => !excluded.has(s.songId));
       const genreOf = new Map<number, string>();
       for (const s of library) {
         if (s.genre) genreOf.set(s.songId, s.genre);
