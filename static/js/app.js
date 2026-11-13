@@ -18,6 +18,7 @@ import { initBackup, loadBackupServers } from './backup.js';
 import {
   initRecommend,
   loadRecommend,
+  loadExclude,
   loadRecSchedule,
   loadRuleFacets,
   loadRules,
@@ -50,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (tabName === 'recommend') {
       loadRecommend();
+      loadExclude();
       // 其余子页面的数据在切到对应子 Tab 时才加载
     }
   });

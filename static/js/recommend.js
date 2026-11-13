@@ -71,6 +71,52 @@ async function applyRecommend() {
   }
 }
 
+// ── 排除歌单 ──────────────────────────────────────────────────────────────────
+
+let excludeLoading = false;
+
+/** 加载"排除歌单"设置：列出可用歌单并以勾选框呈现，勾选后即时保存 */
+export async function loadExclude() {
+  if (excludeLoading) return;
+  excludeLoading = true;
+  const box = document.getElementById('excludePlaylistList');
+  if (!box) {
+    excludeLoading = false;
+    return;
+  }
+  try {
+    const resp = await apiGet('/api/recommend/exclude');
+    if (!resp.success) throw new Error(resp.error || '加载失败');
+    const { exclude = [], playlists = [] } = resp.data || {};
+    if (!playlists.length) {
+      box.innerHTML = '<span class="form-desc">没有可选的歌单</span>';
+      return;
+    }
+    box.innerHTML = playlists
+      .map((p) => {
+        const checked = exclude.includes(p.name) ? 'checked' : '';
+        return `<label class="md-checkbox" style="margin-bottom:6px;"><input type="checkbox" data-name="${escapeHtml(p.name)}" ${checked}>${escapeHtml(p.name)}</label>`;
+      })
+      .join('');
+    box.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+      cb.addEventListener('change', async () => {
+        const names = [...box.querySelectorAll('input[type=checkbox]:checked')].map((c) => c.dataset.name);
+        try {
+          const r = await apiPost('/api/recommend/exclude', { exclude: names });
+          if (r.success) showToast('排除歌单已保存');
+          else showToast('保存失败：' + String(r.error || ''), false);
+        } catch (e) {
+          showToast('保存失败：' + String(e.message || e), false);
+        }
+      });
+    });
+  } catch (e) {
+    box.innerHTML = `<span class="form-desc">加载失败：${escapeHtml(String(e.message || e))}</span>`;
+  } finally {
+    excludeLoading = false;
+  }
+}
+
 // ── 规则歌单 ──────────────────────────────────────────────────────────────────
 
 let facetsLoaded = false;

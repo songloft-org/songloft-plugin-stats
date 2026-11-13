@@ -9,7 +9,7 @@ import { getBackupDavConfigs, saveBackupDavConfigs, getBackupDavConfig, loadBack
 import { testConnection, listDirectory, uploadBackup, downloadBackup } from './webdav';
 import { doPush, scheduleNextPush, scheduleNextBackup, loadRecommendSchedule, saveRecommendSchedule, scheduleNextRecommendRefresh, doRecommendRefresh, scheduleNextAiReport } from './scheduler';
 import type { PushResult, RecommendSchedule } from './scheduler';
-import { generateRecommend, materializePlaylist, MODE_INFO, ALL_MODES } from './recommend/playlists';
+import { generateRecommend, materializePlaylist, MODE_INFO, ALL_MODES, loadExcludePlaylists, saveExcludePlaylists } from './recommend/playlists';
 import type { RecommendMode } from './recommend/playlists';
 import { loadRules, upsertRule, deleteRule, generateRuleItems, materializeRule, getLibraryFacets } from './recommend/rules';
 import { getTagStatus, triggerTagScrape, getTagScrapeProgress } from './recommend/linkage';
@@ -435,6 +435,31 @@ function registerStatsHandlers(router: Router): void {
       const limit = typeof input.limit === 'number' ? input.limit : 30;
       const result = await materializePlaylist(mode, limit);
       return jsonResponse({ success: true, data: result });
+    } catch (e) {
+      return jsonResponse({ success: false, error: String(e) });
+    }
+  });
+
+  // ── 排除歌单（推荐时跳过指定歌单内的歌曲）────────────────────────────
+
+  router.get('/api/recommend/exclude', async () => {
+    const exclude = await loadExcludePlaylists();
+    let playlists: { id: number; name: string }[] = [];
+    try {
+      const list = await songloft.playlists.list();
+      playlists = list.map((pl) => ({ id: pl.id, name: pl.name })).filter((p) => p.name);
+    } catch {
+      /* 无法枚举歌单时忽略，前端显示空列表 */
+    }
+    return jsonResponse({ success: true, data: { exclude, playlists } });
+  });
+
+  router.post('/api/recommend/exclude', async (req: HTTPRequest) => {
+    try {
+      const input = parseBody(req);
+      const names = Array.isArray(input.exclude) ? input.exclude.map(String) : [];
+      await saveExcludePlaylists(names);
+      return jsonResponse({ success: true, data: { exclude: await loadExcludePlaylists() } });
     } catch (e) {
       return jsonResponse({ success: false, error: String(e) });
     }
